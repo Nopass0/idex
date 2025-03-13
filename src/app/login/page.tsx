@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { AuthTabs } from "@/components/auth/auth-tabs";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+// Компонент для получения параметров запроса
+function LoginWithParams() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -17,6 +18,14 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, isLoading, router, from]);
 
-  // Явно указываем defaultTab="login" для открытия на вкладке входа
   return <AuthTabs defaultTab="login" />;
+}
+
+// Основной компонент страницы
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Загрузка...</div>}>
+      <LoginWithParams />
+    </Suspense>
+  );
 }
