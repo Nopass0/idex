@@ -24,16 +24,10 @@ import {
   CheckIcon,
   UserIcon
 } from "lucide-react";
+import { createTRPCClient, httpLink } from "@trpc/client";
+import { appRouter } from "@/server/api/root";
 
-const url = "/api/trpc";
-const trpcClient = createTRPCClient(appRouter, {
-  links: [
-    httpLink({
-      url,
-      fetch,
-    }),
-  ],
-});
+
 
 export default function UsersManagementPage() {
   const { user, isAuthenticated, isLoading, isAdmin } = useAuth();
