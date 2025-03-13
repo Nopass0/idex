@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  GUEST // user, but now active
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  password     String
+  role         UserRole @default(GUEST)
+  balanceUSDT  Float    @default(0)
+  balanceRUB   Float    @default(0)
+  
+  // Добавленные отношения
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  tokens       Token[]
+  keys         Key[]
+  sentTransactions     Transaction[] @relation("Sender")
+  receivedTransactions Transaction[] @relation("Receiver")
+  disputes     Dispute[]
+  bankAccounts BankAccount[]
+  devices      Device[]
+  messages     Message[]
+
+  @@index([name])
+}
+
+model Token {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Key {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  userId    Int
+  isActive  Boolean  @default(false) // active key used (true) or not activated (false)
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Новые модели для расширенной функциональности
+model Transaction {
+  id           Int               @id @default(autoincrement())
+  amount       Float
+  currency     String            // USDT или RUB
+  status       TransactionStatus @default(PENDING)
+  description  String?
+  
+  senderId     Int
+  sender       User              @relation("Sender", fields: [senderId], references: [id])
+  
+  receiverId   Int
+  receiver     User              @relation("Receiver", fields: [receiverId], references: [id])
+  
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  
+  disputes     Dispute[]
+}
+
+model Dispute {
+  id            Int      @id @default(autoincrement())
+  reason        String
+  description   String
+  resolved      Boolean  @default(false)
+  
+  transactionId Int
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model BankAccount {
+  id            Int      @id @default(autoincrement())
+  accountName   String
+  accountNumber String
+  bankName      String
+  details       String?
+  
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Device {
+  id            Int      @id @default(autoincrement())
+  deviceName    String
+  deviceType    String
+  lastLogin     DateTime
+  ipAddress     String
+  
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Message {
+  id            Int      @id @default(autoincrement())
+  title         String
+  content       String
+  isRead        Boolean  @default(false)
+  
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
