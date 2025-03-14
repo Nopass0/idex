@@ -162,20 +162,9 @@ export default function ProfilePage() {
 
         {/* Форма активации для гостей */}
         {isGuest && (
-          <Card className="w-full shadow-md">
-            <CardHeader>
-              <div className="flex flex-col gap-1">
-                <h2 className="text-xl font-bold">Активация аккаунта</h2>
-                <p className="text-default-500">
-                  Введите ключ активации для полного доступа к платформе
-                </p>
-              </div>
-            </CardHeader>
-            <Divider />
-            <CardBody>
+
               <ActivateForm />
-            </CardBody>
-          </Card>
+
         )}
         
         {/* Дополнительные блоки для активного пользователя */}

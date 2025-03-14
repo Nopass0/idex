@@ -4,7 +4,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { db } from "@/server/db";
-import { type User } from "@prisma/client";
+import { type User, UserRole } from "@prisma/client";
 
 /**
  * 1. CONTEXT
@@ -30,6 +30,7 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
             role: true,
             balanceUSDT: true,
             balanceRUB: true,
+            walletAddress: true,
             createdAt: true,
             updatedAt: true,
           },
@@ -116,6 +117,32 @@ const isAuthed = t.middleware(({ ctx, next }) => {
 });
 
 /**
+ * Admin middleware - verifies user is an admin
+ */
+const isAdmin = t.middleware(({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Not authenticated",
+    });
+  }
+  
+  if (ctx.user.role !== UserRole.ADMIN) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Not authorized",
+    });
+  }
+  
+  return next({
+    ctx: {
+      user: ctx.user,
+      token: ctx.token,
+    },
+  });
+});
+
+/**
  * Public (unauthenticated) procedure
  */
 export const publicProcedure = t.procedure.use(timingMiddleware);
@@ -126,3 +153,10 @@ export const publicProcedure = t.procedure.use(timingMiddleware);
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(isAuthed);
+
+/**
+ * Admin procedure - only accessible by admin users
+ */
+export const adminProcedure = t.procedure
+  .use(timingMiddleware)
+  .use(isAdmin);

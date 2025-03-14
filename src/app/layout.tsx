@@ -1,12 +1,14 @@
 import "@/styles/globals.css";
 
 import { GeistSans } from "geist/font/sans";
-import { type Metadata } from "next";
+import { Metadata } from "next";
 
 import { TRPCReactProvider } from "@/trpc/react";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { AuthProvider } from "@/providers/auth-provider";
 import { Navigation } from "@/components/navigation";
+import { useToast } from "@heroui/toast";
+import { HeroUIProvider } from "@heroui/system";
 
 export const metadata: Metadata = {
   title: "IDEX",
@@ -18,18 +20,20 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ru" className={`${GeistSans.variable}`}>
+    <html lang="ru" suppressHydrationWarning className={`${GeistSans.variable}`}>
       <body>
         <TRPCReactProvider>
           <ThemeProvider defaultTheme="system" storageKey="idex-theme">
-            <AuthProvider>
-              <div className="flex flex-col min-h-screen">
-                <Navigation />
-                <main className="flex-grow">
-                  {children}
-                </main>
-              </div>
-            </AuthProvider>
+            <HeroUIProvider>
+              <AuthProvider>
+                <div className="flex flex-col min-h-screen">
+                  <Navigation />
+                  <main className="flex-1">
+                    {children}
+                  </main>
+                </div>
+              </AuthProvider>
+            </HeroUIProvider>
           </ThemeProvider>
         </TRPCReactProvider>
       </body>

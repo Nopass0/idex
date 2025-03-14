@@ -23,26 +23,34 @@ enum TransactionStatus {
   DISPUTED
 }
 
+enum DepositStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 model User {
-  id           Int      @id @default(autoincrement())
-  name         String
-  email        String   @unique
-  password     String
-  role         UserRole @default(GUEST)
-  balanceUSDT  Float    @default(0)
-  balanceRUB   Float    @default(0)
+  id               Int      @id @default(autoincrement())
+  name             String
+  email            String   @unique
+  password         String
+  role             UserRole @default(GUEST)
+  balanceUSDT      Float    @default(0)
+  balanceRUB       Float    @default(0)
+  walletAddress    String?  // TRC20 кошелек пользователя для пополнений
   
   // Добавленные отношения
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  tokens       Token[]
-  keys         Key[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  tokens           Token[]
+  keys             Key[]
   sentTransactions     Transaction[] @relation("Sender")
   receivedTransactions Transaction[] @relation("Receiver")
-  disputes     Dispute[]
-  bankAccounts BankAccount[]
-  devices      Device[]
-  messages     Message[]
+  disputes         Dispute[]
+  bankAccounts     BankAccount[]
+  devices          Device[]
+  messages         Message[]
+  deposits         Deposit[]     // Пополнения баланса
 
   @@index([name])
 }
@@ -141,4 +149,28 @@ model Message {
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model Deposit {
+  id              Int           @id @default(autoincrement())
+  amount          Float         // Сумма пополнения в USDT
+  amountAfterFee  Float         // Сумма после вычета комиссии
+  transactionHash String?       // Хеш транзакции TRC20
+  status          DepositStatus @default(PENDING)
+  
+  userId          Int
+  user            User          @relation(fields: [userId], references: [id])
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model SystemSettings {
+  id                 Int      @id @default(autoincrement())
+  commissionRate     Float    @default(9.0)  // Комиссия в процентах, по умолчанию 9%
+  systemWalletAddress String   // Системный TRC20 кошелек для пополнений
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  @@map("system_settings")
 }

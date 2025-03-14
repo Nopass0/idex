@@ -6,6 +6,7 @@ import { createTRPCReact } from "@trpc/react-query";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { useState } from "react";
 import SuperJSON from "superjson";
+import Cookies from "js-cookie";
 
 import { type AppRouter } from "@/server/api/root";
 import { createQueryClient } from "./query-client";
@@ -53,6 +54,15 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
           headers: () => {
             const headers = new Headers();
             headers.set("x-trpc-source", "nextjs-react");
+            
+            // Получаем токен из куки
+            const token = Cookies.get("auth-token");
+            
+            // Если токен существует, добавляем его в заголовок запроса
+            if (token) {
+              headers.set("authorization", `Bearer ${token}`);
+            }
+            
             return headers;
           },
         }),

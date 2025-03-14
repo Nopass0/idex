@@ -20,6 +20,7 @@ export interface User {
   role: UserRole;
   balanceUSDT?: number;
   balanceRUB?: number;
+  walletAddress?: string | null;
   createdAt?: Date;
 }
 
