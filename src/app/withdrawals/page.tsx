@@ -27,7 +27,8 @@ import {
   ClipboardIcon,
   CheckIcon,
   EyeIcon,
-  DownloadIcon
+  DownloadIcon,
+  XIcon
 } from "lucide-react";
 
 // Моковые данные для выплат
@@ -219,23 +220,40 @@ const mockWithdrawals = [
   }
 ];
 
-// Банки для фильтра
+// Банки для фильтра из второго документа
 const banks = [
   "Все",
   "Сбербанк",
-  "Тинькофф",
-  "Альфа-БАНК",
-  "ВТБ",
-  "Qiwi Банк",
+  "T-Банк (Тинькофф)",
+  "РНКБ Банк",
+  "Райффайзенбанк",
+  "БАНК УРАЛСИБ",
+  "Озон Банк (Ozon)",
+  "КБ УБРиР",
+  "Цифра банк",
+  "Банк ДОМ.РФ",
   "Газпромбанк",
-  "Райффайзенбанк"
+  "АКБ Абсолют Банк",
+  "АЛЬФА-БАНК",
+  "Банк ВТБ",
+  "АК БАРС БАНК",
+  "РОСБАНК",
+  "ОТП Банк",
+  "КБ Ренессанс Кредит",
+  "Банк ЗЕНИТ",
+  "Россельхозбанк",
+  "Промсвязьбанк",
+  "Почта Банк",
+  "МТС-Банк",
+  "Банк Русский Стандарт",
+  "АКБ АВАНГАРД",
+  "КБ Солидарность"
 ];
 
 // Типы профилей для фильтра
 const profileTypes = [
-  "Физическое лицо",
-  "Банковский партнёр",
-  "Коммерческая компания"
+  "СБП",
+  "Банковская карта"
 ];
 
 // Функция для форматирования копирования
@@ -254,9 +272,11 @@ export default function WithdrawalsPage() {
   const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [balance, setBalance] = useState("0.00");
-  const [selectedProfileType, setSelectedProfileType] = useState(new Set(["Физическое лицо"]));
-  const [selectedBankSNP, setSelectedBankSNP] = useState(new Set(["Выберите банк"]));
-  const [selectedBankByCard, setSelectedBankByCard] = useState(new Set(["Все"]));
+  
+  // Обновленные состояния для мультиселекта
+  const [selectedProfileTypes, setSelectedProfileTypes] = useState(new Set([]));
+  const [selectedBanksSBP, setSelectedBanksSBP] = useState(new Set([]));
+  const [selectedBanksByCard, setSelectedBanksByCard] = useState(new Set(["Все"]));
   const [copySuccess, setCopySuccess] = useState("");
 
   // Проверка аутентификации при загрузке страницы
@@ -354,6 +374,40 @@ export default function WithdrawalsPage() {
     return null;
   }
 
+  // Функция для рендеринга выбранных элементов в виде чипов
+  const renderSelectedItems = (selectedItems, setSelectedItems) => {
+    const items = Array.from(selectedItems);
+    
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {items.map(item => (
+          <Chip 
+            key={item} 
+            size="sm" 
+            variant="flat" 
+            color="primary"
+            classNames={{
+              base: "bg-primary-100 dark:bg-primary-200/20",
+              content: "text-primary-700 dark:text-primary-300"
+            }}
+            onClose={() => {
+              const newSelectedItems = new Set(selectedItems);
+              newSelectedItems.delete(item);
+              setSelectedItems(newSelectedItems);
+            }}
+            closeButton={{
+              props: {
+                "aria-label": `Удалить ${item}`
+              }
+            }}
+          >
+            {item}
+          </Chip>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="flex flex-col space-y-6">
@@ -385,15 +439,18 @@ export default function WithdrawalsPage() {
           
           <Divider />
           
-          <CardBody>
+          <CardBody className="dark:bg-content1">
             {/* Фильтры */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div>
                 <p className="text-sm text-default-500 mb-1">Выбор типа профиля:</p>
                 <Select
-                  selectedKeys={selectedProfileType}
-                  onSelectionChange={setSelectedProfileType}
+                  selectionMode="multiple"
+                  selectedKeys={selectedProfileTypes}
+                  onSelectionChange={setSelectedProfileTypes}
                   className="w-full"
+                  variant="bordered"
+                  placeholder="Выберите типы профиля"
                 >
                   {profileTypes.map((type) => (
                     <SelectItem key={type} value={type}>
@@ -401,32 +458,37 @@ export default function WithdrawalsPage() {
                     </SelectItem>
                   ))}
                 </Select>
+                {selectedProfileTypes.size > 0 && renderSelectedItems(selectedProfileTypes, setSelectedProfileTypes)}
               </div>
               
               <div>
-                <p className="text-sm text-default-500 mb-1">Выбор банка СНП:</p>
+                <p className="text-sm text-default-500 mb-1">Выбор банков СБП:</p>
                 <Select
-                  selectedKeys={selectedBankSNP}
-                  onSelectionChange={setSelectedBankSNP}
+                  selectionMode="multiple"
+                  selectedKeys={selectedBanksSBP}
+                  onSelectionChange={setSelectedBanksSBP}
                   className="w-full"
+                  variant="bordered"
+                  placeholder="Выберите банки СБП"
                 >
-                  <SelectItem key="Выберите банк" value="Выберите банк">
-                    Выберите банк
-                  </SelectItem>
                   {banks.map((bank) => (
                     <SelectItem key={bank} value={bank}>
                       {bank}
                     </SelectItem>
                   ))}
                 </Select>
+                {selectedBanksSBP.size > 0 && renderSelectedItems(selectedBanksSBP, setSelectedBanksSBP)}
               </div>
               
               <div>
                 <p className="text-sm text-default-500 mb-1">Выбор банка по карте:</p>
                 <Select
-                  selectedKeys={selectedBankByCard}
-                  onSelectionChange={setSelectedBankByCard}
+                  selectionMode="multiple"
+                  selectedKeys={selectedBanksByCard}
+                  onSelectionChange={setSelectedBanksByCard}
                   className="w-full"
+                  variant="bordered"
+                  placeholder="Выберите банки по карте"
                 >
                   {banks.map((bank) => (
                     <SelectItem key={bank} value={bank}>
@@ -434,6 +496,7 @@ export default function WithdrawalsPage() {
                     </SelectItem>
                   ))}
                 </Select>
+                {selectedBanksByCard.size > 0 && renderSelectedItems(selectedBanksByCard, setSelectedBanksByCard)}
               </div>
               
               <div className="flex flex-col">
@@ -475,23 +538,28 @@ export default function WithdrawalsPage() {
                   }
                   classNames={{
                     wrapper: "min-h-[500px]",
+                    tr: "border-b border-divider hover:bg-default-100 dark:hover:bg-default-50",
                   }}
+                  aria-labelledby="withdrawals-table"
                 >
                   <TableHeader>
-                    <TableColumn>Заявка</TableColumn>
-                    <TableColumn>Дата создания / подтверждения</TableColumn>
-                    <TableColumn>Сумма</TableColumn>
-                    <TableColumn>Получатель</TableColumn>
-                    <TableColumn>Сумма к списанию</TableColumn>
-                    <TableColumn>Курс</TableColumn>
-                    <TableColumn>Действия</TableColumn>
+                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Заявка</TableColumn>
+                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Дата создания / подтверждения</TableColumn>
+                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Сумма</TableColumn>
+                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Получатель</TableColumn>
+                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Сумма к списанию</TableColumn>
+                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Курс</TableColumn>
+                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Действия</TableColumn>
                   </TableHeader>
                   <TableBody 
                     items={paginatedWithdrawals}
                     emptyContent={"Нет данных для отображения"}
                   >
                     {(withdrawal) => (
-                      <TableRow key={withdrawal.id}>
+                      <TableRow 
+                        key={withdrawal.id} 
+                        className="even:bg-default-50 dark:even:bg-default-100 transition-colors"
+                      >
                         <TableCell>
                           <Button
                             variant="light"
@@ -652,7 +720,7 @@ export default function WithdrawalsPage() {
                   {selectedWithdrawal.attachedFiles.length > 0 ? (
                     <div className="flex flex-col gap-2">
                       {selectedWithdrawal.attachedFiles.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 border rounded-md">
+                        <div key={index} className="flex items-center justify-between p-2 border dark:border-gray-500/20 rounded-md">
                           <div className="flex items-center gap-2">
                             <FileIcon size={16} className="text-primary" />
                             <span className="font-medium">{file.name}</span>

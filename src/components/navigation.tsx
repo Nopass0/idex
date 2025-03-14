@@ -9,6 +9,7 @@ import { Button } from "@heroui/button";
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, DropdownSection } from "@heroui/dropdown";
 import { Avatar } from "@heroui/avatar";
 import { Divider } from "@heroui/divider";
+import { Skeleton } from "@heroui/skeleton";
 import { 
   SunIcon, 
   MoonIcon, 
@@ -27,7 +28,9 @@ import {
   WalletIcon,
   CopyIcon,
   CheckIcon,
-  LogOutIcon
+  LogOutIcon,
+  ArrowUpIcon,
+  ArrowDownIcon
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
@@ -49,7 +52,62 @@ export function Navigation() {
   const [isTransactionPending, setIsTransactionPending] = useState(false);
   const [isDeposited, setIsDeposited] = useState(false);
   const [depositAmount, setDepositAmount] = useState(0);
+  const [buyRate, setBuyRate] = useState(null);
+  const [sellRate, setSellRate] = useState(null);
+  const [isLoadingRates, setIsLoadingRates] = useState(true);
   const router = useRouter();
+
+  // Функция для загрузки курсов USDT/RUB с Bybit через API-маршрут Next.js
+  const fetchRates = async () => {
+    setIsLoadingRates(true);
+    try {
+      // Используем локальный API-маршрут, который делает запросы к Bybit от имени сервера
+      const response = await fetch('/api/get-usdt-rates');
+      
+      if (!response.ok) {
+        throw new Error(`Ошибка запроса к API: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Проверяем наличие данных в ответе
+      if (data.buyRate && data.sellRate) {
+        console.log('Получены курсы с API:', { 
+          buyRate: data.buyRate, 
+          sellRate: data.sellRate,
+          timestamp: data.timestamp
+        });
+        
+        // Устанавливаем курсы в состояние компонента
+        setBuyRate(data.buyRate);
+        setSellRate(data.sellRate);
+      } else {
+        throw new Error('Некорректный ответ от API: отсутствуют данные о курсах');
+      }
+    } catch (error) {
+      console.error('Ошибка при получении курсов:', error);
+      
+      // В случае ошибки используем фиксированные значения
+      // Используем предыдущие значения, если они есть, иначе устанавливаем дефолтные
+      setBuyRate(prevBuyRate => prevBuyRate || 87.30);
+      setSellRate(prevSellRate => prevSellRate || 90.11);
+    } finally {
+      setIsLoadingRates(false);
+    }
+  };
+
+  // Интервал обновления данных (в миллисекундах)
+  const REFRESH_INTERVAL = 2 * 60 * 1000; // 2 минуты
+
+  // Загрузка курсов при монтировании компонента и периодическое обновление
+  useEffect(() => {
+    fetchRates();
+    
+    // Обновляем курсы каждые 2 минуты
+    const interval = setInterval(fetchRates, REFRESH_INTERVAL);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Простая функция для отображения уведомлений
   const showToast = (title: string, description: string, variant: 'success' | 'error' = 'success') => {
@@ -205,6 +263,20 @@ export function Navigation() {
     { href: "/withdrawals", icon: <BanknoteIcon className="h-4 w-4" />, label: "Выплаты" },
   ];
 
+  // Компонент для отображения курса с индикатором загрузки
+  const RateDisplay = ({ icon, rate, label }) => (
+    <div className="flex items-center gap-1">
+      {icon}
+      {isLoadingRates ? (
+        <Skeleton className="h-3 w-12 rounded" />
+      ) : (
+        <span className="text-xs text-default-500">
+          {rate?.toFixed(2) || "0.00"} ₽
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <>
       <Navbar maxWidth="xl" className="relative">
@@ -248,8 +320,25 @@ export function Navigation() {
               <Dropdown>
                 <DropdownTrigger>
                   <div className="flex items-center gap-2 cursor-pointer">
+                    {/* Блок с курсами валют - отображается слева от профиля */}
+                    <div className="hidden md:flex flex-col items-end mr-3 border-r pr-3 border-gray-200 dark:border-gray-700">
+                      <div className="flex flex-col gap-0.5">
+                        <RateDisplay 
+                          icon={<ArrowUpIcon className="h-3 w-3 text-green-500" />} 
+                          rate={buyRate} 
+                          label="Покупка" 
+                        />
+                        <RateDisplay 
+                          icon={<ArrowDownIcon className="h-3 w-3 text-red-500" />} 
+                          rate={sellRate} 
+                          label="Продажа" 
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Блок с информацией о пользователе */}
                     <div className="hidden md:flex flex-col items-end">
-                      <span className="text-sm font-medium">{safeUserData().name}</span>
+                      <span className="text-sm font-medium">#{safeUserData().id}</span>
                       <div className="flex items-center gap-1">
                         <DollarSignIcon className="h-3 w-3 text-success" />
                         <span className="text-xs text-default-500">
@@ -291,6 +380,30 @@ export function Navigation() {
                             <span className="text-xs font-medium flex items-center gap-1">
                               <RussianRubleIcon className="h-3 w-3 text-primary" />
                               {safeUserData().balanceRUB?.toFixed(2) || "0.00"}
+                            </span>
+                          </div>
+                          {/* Добавляем информацию о курсах в выпадающее меню */}
+                          <Divider className="my-1" />
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-default-500">Покупка:</span>
+                            <span className="text-xs font-medium flex items-center gap-1">
+                              <ArrowUpIcon className="h-3 w-3 text-green-500" />
+                              {isLoadingRates ? (
+                                <Skeleton className="h-3 w-12 rounded" />
+                              ) : (
+                                `${buyRate?.toFixed(2) || "0.00"} ₽`
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-default-500">Продажа:</span>
+                            <span className="text-xs font-medium flex items-center gap-1">
+                              <ArrowDownIcon className="h-3 w-3 text-red-500" />
+                              {isLoadingRates ? (
+                                <Skeleton className="h-3 w-12 rounded" />
+                              ) : (
+                                `${sellRate?.toFixed(2) || "0.00"} ₽`
+                              )}
                             </span>
                           </div>
                         </div>
