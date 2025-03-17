@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/providers/theme-provider";
 import { AuthProvider } from "@/providers/auth-provider";
 import { Navigation } from "@/components/navigation";
 import { useToast } from "@heroui/toast";
+import {ToastProvider} from "@heroui/toast";
 import { HeroUIProvider } from "@heroui/system";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function RootLayout({
         <TRPCReactProvider>
           <ThemeProvider defaultTheme="system" storageKey="idex-theme">
             <HeroUIProvider>
+              {/* <ToastProvider> */}
               <AuthProvider>
                 <div className="flex flex-col min-h-screen">
                   <Navigation />
@@ -33,6 +35,7 @@ export default function RootLayout({
                   </main>
                 </div>
               </AuthProvider>
+              {/* </ToastProvider> */}
             </HeroUIProvider>
           </ThemeProvider>
         </TRPCReactProvider>

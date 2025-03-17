@@ -10,6 +10,7 @@ import { ActivateForm } from "@/components/auth/activate-form";
 import { UserRole } from "@prisma/client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import generateAppleWatchAvatar from "@/lib/utils/avatar-generator";
 import { 
   LogOutIcon, 
   ShieldIcon, 
@@ -77,6 +78,9 @@ export default function ProfilePage() {
 
   const roleInfo = user?.role ? getRoleDisplay(user.role) : { label: "Неизвестно", color: "default" as const, icon: <UserIcon className="h-4 w-4" /> };
 
+  // Генерируем аватарку на основе имени и email пользователя
+  const avatar = user ? generateAppleWatchAvatar(user.name || "Пользователь", user.email || "user") : null;
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-col space-y-6">
@@ -85,8 +89,14 @@ export default function ProfilePage() {
         {/* Основной профиль */}
         <Card className="w-full shadow-md">
           <CardHeader className="flex flex-row items-center gap-4 pb-2">
-            <div className="h-20 w-20 bg-default-100 rounded-full flex items-center justify-center">
-              <UserCircleIcon size={60} className="text-default-500" />
+            <div className="h-20 w-20 rounded-full flex items-center justify-center overflow-hidden bg-default-100">
+              {avatar ? (
+                <div dangerouslySetInnerHTML={{ __html: avatar.svg.dark }} />
+              ) : (
+                <div className="h-20 w-20 bg-default-100 rounded-full flex items-center justify-center">
+                  <UserCircleIcon size={60} className="text-default-500" />
+                </div>
+              )}
             </div>
             <div className="flex flex-col">
               <h2 className="text-2xl font-bold">{user?.name}</h2>

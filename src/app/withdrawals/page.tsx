@@ -31,8 +31,37 @@ import {
   XIcon
 } from "lucide-react";
 
+// Типы данных для выплат
+interface Recipient {
+  bank: string;
+  cardNumber: string;
+}
+
+interface AmountToCharge {
+  usdt: number;
+  rub: number;
+}
+
+interface AttachedFile {
+  name: string;
+  size: string;
+}
+
+interface Withdrawal {
+  id: number;
+  status: string;
+  createdAt: string;
+  confirmedAt: string;
+  amountRUB: number;
+  amountUSDT: number;
+  recipient: Recipient;
+  amountToCharge: AmountToCharge;
+  exchangeRate: number;
+  attachedFiles: AttachedFile[];
+}
+
 // Моковые данные для выплат
-const mockWithdrawals = [
+const mockWithdrawals: Withdrawal[] = [
   {
     id: 1648230,
     status: "Время истекло",
@@ -237,6 +266,7 @@ const banks = [
   "АЛЬФА-БАНК",
   "Банк ВТБ",
   "АК БАРС БАНК",
+  "Хоум кредит",
   "РОСБАНК",
   "ОТП Банк",
   "КБ Ренессанс Кредит",
@@ -247,7 +277,135 @@ const banks = [
   "МТС-Банк",
   "Банк Русский Стандарт",
   "АКБ АВАНГАРД",
-  "КБ Солидарность"
+  "КБ Солидарность",
+  "Дальневосточный банк",
+  "ББР Банк",
+  "ЮниКредит Банк",
+  "ГЕНБАНК",
+  "ЦМРБанк",
+  "Свой Банк",
+  "Ингосстрах Банк",
+  "МОСКОВСКИЙ КРЕДИТНЫЙ БАНК",
+  "Совкомбанк",
+  "КБ Модульбанк",
+  "Яндекс Банк",
+  "КБ ЮНИСТРИМ",
+  "АКБ ФОРА-БАНК",
+  "Банк Санкт-Петербург",
+  "КБ Кубань Кредит",
+  "Кредит Европа Банк (Россия)",
+  "АКБ НОВИКОМБАНК",
+  "Банк Агророс",
+  "Урал ФД (Клюква)",
+  "ТКБ БАНК",
+  "Сургутнефтегазбанк",
+  "БКС Банк",
+  "КБ РостФинанс",
+  "Амра банк",
+  "Металлинвестбанк",
+  "АБ РОССИЯ",
+  "Норвик Банк",
+  "Аврора Банк",
+  "Азиатско-Тихоокеанский Банк",
+  "СДМ-Банк",
+  "Мир Привилегий",
+  "НС Банк",
+  "Банк Точка",
+  "ТАТСОЦБАНК",
+  "Севергазбанк",
+  "НКО ЮМани",
+  "Банк Синара",
+  "Цупис Кошелек",
+  "Банк Финсервис",
+  "КБ Долинск",
+  "Углеметбанк",
+  "Примсоцбанк (ПСКБ)",
+  "Экспобанк",
+  "КОШЕЛЕВ-БАНК",
+  "КБЭР Банк Казани",
+  "Банк Левобережный",
+  "Интерпрогрессбанк (ИПБ)",
+  "КБ ЛОКО-Банк",
+  "Банк Оранжевый",
+  "Банк АЛЕКСАНДРОВСКИЙ",
+  "Живаго Банк",
+  "КБ Пойдём!",
+  "Банк Приморье",
+  "Банк ВБРР",
+  "Газэнергобанк",
+  "Банк Калуга",
+  "АКБ ТЕНДЕР-БАНК",
+  "МТС Деньги (ЭКСИ Банк)",
+  "Первый Дортрансбанк",
+  "ЧЕЛЯБИНВЕСТБАНК",
+  "Банк Акцепт",
+  "А-Мобаил",
+  "Ставропольпромстройбанк",
+  "АИКБ Енисейский объединенный банк",
+  "КБ «Черноморский банк развития»",
+  "Датабанк",
+  "КБ Хлынов",
+  "АКБ Ланта-Банк",
+  "Банк Национальный стандарт",
+  "Кредит Урал Банк",
+  "АКБ Трансстройбанк",
+  "Вологжанин",
+  "Прио-Внешторгбанк",
+  "НИКО-БАНК",
+  "Банк ИТУРУП",
+  "РЕАЛИСТ БАНК",
+  "Авито Кошелек",
+  "Универсал",
+  "Автоторгбанк",
+  "Банк РМП",
+  "Банк БЖФ",
+  "АКБ Энергобанк",
+  "Банк ФИНАМ",
+  "Таврический Банк",
+  "Вайлдберриз Банк",
+  "Душанбе Сити",
+  "КБ Центр-инвест",
+  "Первый Инвестиционный Банк",
+  "Драйв Клик Банк",
+  "КАМКОМБАНК",
+  "ПНКО ЭЛПЛАТ",
+  "Банк Интеза",
+  "ИК Банк",
+  "Далена Банк",
+  "АКИБАНК",
+  "Хакасский муниципальный банк",
+  "Эсхата",
+  "Спитамен Банк",
+  "КБ ЭНЕРГОТРАНСБАНК",
+  "ОРИЁНБАНК",
+  "Экономбанк",
+  "Банк Арванд",
+  "СОЦИУМ-БАНК",
+  "ВЛАДБИЗНЕСБАНК",
+  "Банк Саратов",
+  "АКБ Форштадт",
+  "АКБ ЕВРОФИНАНС МОСНАРБАНК",
+  "Братский Народный Банк",
+  "ЧЕЛИНДБАНК",
+  "Амонатбанк",
+  "Евроальянс Банк",
+  "Инбанк",
+  "Тавхидбанк",
+  "КБ РУСНАРБАНК",
+  "E-wallet",
+  "ПУ Банк (Лучи)",
+  "БАНК ОРЕНБУРГ",
+  "банк Элита",
+  "Газтрансбанк",
+  "НБКО Васл",
+  "ЮГ-Инвестбанк",
+  "Банк Кузнецкий",
+  "Кубаньторгбанк",
+  "Тамбовкредитпромбанк (ТКПБ)",
+  "VK Pay",
+  "АКБ Солид",
+  "Матин",
+  "АКБ Алмазэргиэнбанк"
 ];
 
 // Типы профилей для фильтра
@@ -262,14 +420,14 @@ const copyToClipboard = (text) => {
 };
 
 export default function WithdrawalsPage() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const router = useRouter();
 
   // Состояния для управления интерфейсом
   const [currentTab, setCurrentTab] = useState("all");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<Withdrawal | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [balance, setBalance] = useState("0.00");
   
@@ -278,13 +436,14 @@ export default function WithdrawalsPage() {
   const [selectedBanksSBP, setSelectedBanksSBP] = useState(new Set([]));
   const [selectedBanksByCard, setSelectedBanksByCard] = useState(new Set(["Все"]));
   const [copySuccess, setCopySuccess] = useState("");
+  const [isLoading, setIsLoading] = useState(false); // Для индикации загрузки при принятии/отклонении
 
   // Проверка аутентификации при загрузке страницы
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       router.push("/login");
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, authLoading, router]);
 
   // Фильтрация выплат по активному табу
   const filteredWithdrawals = mockWithdrawals.filter(withdrawal => {
@@ -319,8 +478,44 @@ export default function WithdrawalsPage() {
     setTimeout(() => setCopySuccess(""), 2000);
   };
 
+  // Обработчик принятия транзакции
+  const handleAcceptWithdrawal = (withdrawal: Withdrawal) => {
+    setIsLoading(true);
+    // В реальном приложении здесь был бы API-запрос
+    setTimeout(() => {
+      const updatedWithdrawals = mockWithdrawals.map(item => {
+        if (item.id === withdrawal.id) {
+          return { ...item, status: "Финализация" };
+        }
+        return item;
+      });
+      
+      // В реальном приложении здесь была бы обработка ответа от сервера
+      alert(`Транзакция №${withdrawal.id} принята`);
+      setIsLoading(false);
+    }, 1000);
+  };
+
+  // Обработчик отклонения транзакции
+  const handleRejectWithdrawal = (withdrawal: Withdrawal) => {
+    setIsLoading(true);
+    // В реальном приложении здесь был бы API-запрос
+    setTimeout(() => {
+      const updatedWithdrawals = mockWithdrawals.map(item => {
+        if (item.id === withdrawal.id) {
+          return { ...item, status: "Отменено" };
+        }
+        return item;
+      });
+      
+      // В реальном приложении здесь была бы обработка ответа от сервера
+      alert(`Транзакция №${withdrawal.id} отклонена`);
+      setIsLoading(false);
+    }, 1000);
+  };
+
   // Открыть модальное окно с деталями выплаты
-  const handleOpenWithdrawalDetails = (withdrawal) => {
+  const handleOpenWithdrawalDetails = (withdrawal: Withdrawal) => {
     setSelectedWithdrawal(withdrawal);
     setIsModalOpen(true);
   };
@@ -332,8 +527,8 @@ export default function WithdrawalsPage() {
   };
   
   // Функция для рендеринга статусного чипа
-  const renderStatusChip = (status) => {
-    let color = "default";
+  const renderStatusChip = (status: string) => {
+    let color: "primary" | "default" | "secondary" | "success" | "warning" | "danger" = "default";
     
     switch (status) {
       case "Завершено":
@@ -360,7 +555,7 @@ export default function WithdrawalsPage() {
   };
 
   // Отображение загрузки
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-100px)]">
         <Spinner size="lg" color="primary" />
@@ -370,7 +565,7 @@ export default function WithdrawalsPage() {
   }
 
   // Ранний возврат вместо редиректа для избежания циклической зависимости
-  if (!isAuthenticated && !isLoading) {
+  if (!isAuthenticated && !authLoading) {
     return null;
   }
 
@@ -443,7 +638,7 @@ export default function WithdrawalsPage() {
             {/* Фильтры */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div>
-                <p className="text-sm text-default-500 mb-1">Выбор типа профиля:</p>
+                <p className="text-sm text-default-500 mb-1">Выбор типа трафика:</p>
                 <Select
                   selectionMode="multiple"
                   selectedKeys={selectedProfileTypes}
@@ -481,7 +676,7 @@ export default function WithdrawalsPage() {
               </div>
               
               <div>
-                <p className="text-sm text-default-500 mb-1">Выбор банка по карте:</p>
+                <p className="text-sm text-default-500 mb-1">Выбор банков по картам:</p>
                 <Select
                   selectionMode="multiple"
                   selectedKeys={selectedBanksByCard}
@@ -626,16 +821,57 @@ export default function WithdrawalsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            color="primary"
-                            variant="flat"
-                            onPress={() => handleCopy(`${withdrawal.id}: ${withdrawal.recipient.cardNumber} - ${withdrawal.amountRUB.toFixed(2)} ₽`)}
-                            className="min-w-[40px]"
-                          >
-                            {copySuccess ? <CheckIcon size={14} /> : <ClipboardIcon size={14} />}
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            {withdrawal.status === "Ожидание подтверждения" ? (
+                              <>
+                                {/* <Button
+                                  isIconOnly
+                                  size="sm"
+                                  color="success"
+                                  variant="flat"
+                                  onPress={() => handleCopy(`${withdrawal.id}: ${withdrawal.recipient.cardNumber} - ${withdrawal.amountRUB.toFixed(2)} ₽`)}
+                                  className="min-w-[40px]"
+                                >
+                                  {copySuccess ? <CheckIcon size={14} /> : <ClipboardIcon size={14} />}
+                                </Button> */}
+                                <Button
+                                  isIconOnly
+                                  size="sm"
+                                  color="success"
+                                  variant="flat"
+                                  className="min-w-[40px]"
+                                  title="Принять"
+                                  onPress={() => handleAcceptWithdrawal(withdrawal)}
+                                  disabled={isLoading}
+                                >
+                                  <CheckIcon size={14} />
+                                </Button>
+                                <Button
+                                  isIconOnly
+                                  size="sm"
+                                  color="danger"
+                                  variant="flat"
+                                  className="min-w-[40px]"
+                                  title="Отклонить"
+                                  onPress={() => handleRejectWithdrawal(withdrawal)}
+                                  disabled={isLoading}
+                                >
+                                  <XIcon size={14} />
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                color="primary"
+                                variant="flat"
+                                onPress={() => handleCopy(`${withdrawal.id}: ${withdrawal.recipient.cardNumber} - ${withdrawal.amountRUB.toFixed(2)} ₽`)}
+                                className="min-w-[40px]"
+                              >
+                                {copySuccess ? <CheckIcon size={14} /> : <ClipboardIcon size={14} />}
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}

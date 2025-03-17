@@ -30,7 +30,8 @@ import {
   CheckIcon,
   LogOutIcon,
   ArrowUpIcon,
-  ArrowDownIcon
+  ArrowDownIcon,
+  CrownIcon
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
@@ -39,6 +40,7 @@ import { useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 import { AnimatePresence, motion } from "framer-motion";
 import { api } from "@/trpc/react";
+import generateAppleWatchAvatar from "@/lib/utils/avatar-generator";
 
 export function Navigation() {
   const { user, token, logout } = useAuthStore();
@@ -52,8 +54,8 @@ export function Navigation() {
   const [isTransactionPending, setIsTransactionPending] = useState(false);
   const [isDeposited, setIsDeposited] = useState(false);
   const [depositAmount, setDepositAmount] = useState(0);
-  const [buyRate, setBuyRate] = useState(null);
-  const [sellRate, setSellRate] = useState(null);
+  const [buyRate, setBuyRate] = useState<number | null>(null);
+  const [sellRate, setSellRate] = useState<number | null>(null);
   const [isLoadingRates, setIsLoadingRates] = useState(true);
   const router = useRouter();
 
@@ -198,25 +200,34 @@ export function Navigation() {
     }
   }, [user]);
 
-  // Функция безопасного получения данных пользователя
-  const safeUserData = () => {
-    // Сначала пробуем получить данные из API запроса
-    if (fetchUserData.data) {
-      return fetchUserData.data;
-    }
-    // Если API недоступно, используем данные из AuthContext
-    if (user) {
-      return user;
-    }
-    // Если нет данных, возвращаем значения по умолчанию
-    return {
+  // Функция безопасного доступа к данным пользователя
+  function safeUserData() {
+    const userState = useAuthStore.getState().user;
+    // Значения по умолчанию
+    const defaultUserData = {
       id: 0,
-      name: "Гость",
+      name: "Пользователь",
+      email: "",
+      role: "USER" as UserRole,
       balanceUSDT: 0,
       balanceRUB: 0,
-      role: UserRole.USER
+      walletAddress: null as string | null
     };
-  };
+    
+    // Если пользователь не авторизован, возвращаем значения по умолчанию
+    if (!userState) return defaultUserData;
+    
+    // Возвращаем объект с гарантированными полями
+    return {
+      id: userState.id || 0,
+      name: userState.name || "Пользователь",
+      email: (userState as any).email || "",
+      role: userState.role || "USER",
+      balanceUSDT: userState.balanceUSDT || 0,
+      balanceRUB: userState.balanceRUB || 0,
+      walletAddress: (userState as any).walletAddress || null
+    };
+  }
 
   // Открытие окна пополнения
   const handleOpenDepositModal = () => {
@@ -264,7 +275,7 @@ export function Navigation() {
   ];
 
   // Компонент для отображения курса с индикатором загрузки
-  const RateDisplay = ({ icon, rate, label }) => (
+  const RateDisplay = ({ icon, rate, label } : { icon: React.ReactNode, rate: number | null, label: string }) => (
     <div className="flex items-center gap-1">
       {icon}
       {isLoadingRates ? (
@@ -348,7 +359,18 @@ export function Navigation() {
                     </div>
                     <Avatar
                       showFallback
-                      src=""
+                      src={(() => {
+                        // Генерация SVG-аватарки на основе имени и ID пользователя
+                        const userData = safeUserData();
+                        if (userData && userData.name) {
+                          const avatarData = generateAppleWatchAvatar(
+                            userData.name, 
+                            userData.email || `user-${userData.id}`
+                          );
+                          return `data:image/svg+xml;utf8,${encodeURIComponent(avatarData.svg.color)}`;
+                        }
+                        return "";
+                      })()}
                       name={safeUserData().name?.charAt(0) || "П"}
                       className="cursor-pointer"
                       size="sm"
@@ -391,7 +413,7 @@ export function Navigation() {
                               {isLoadingRates ? (
                                 <Skeleton className="h-3 w-12 rounded" />
                               ) : (
-                                `${buyRate?.toFixed(2) || "0.00"} ₽`
+                                `${Number(buyRate)?.toFixed(2) || "0.00"} ₽`
                               )}
                             </span>
                           </div>
@@ -402,7 +424,7 @@ export function Navigation() {
                               {isLoadingRates ? (
                                 <Skeleton className="h-3 w-12 rounded" />
                               ) : (
-                                `${sellRate?.toFixed(2) || "0.00"} ₽`
+                                `${Number(sellRate)?.toFixed(2) || "0.00"} ₽`
                               )}
                             </span>
                           </div>
@@ -425,11 +447,13 @@ export function Navigation() {
                   
                   {/* Профиль и пополнение */}
                   <DropdownSection>
-                    <DropdownItem key="profile">
-                      <Link href="/profile" className="w-full flex items-center gap-2">
-                        <UserIcon className="h-4 w-4" />
-                        Профиль
-                      </Link>
+                    <DropdownItem key="profile" className="h-14 gap-2">
+                      <User 
+                        name={safeUserData().name} 
+                        role={safeUserData().role}
+                        userId={safeUserData().id}
+                        email={safeUserData().email}
+                      />
                     </DropdownItem>
                     
                     <DropdownItem key="deposit" onPress={handleOpenDepositModal}>
@@ -438,7 +462,18 @@ export function Navigation() {
                         Пополнить баланс
                       </div>
                     </DropdownItem>
+
+                    {user?.role === UserRole.ADMIN ? (
+                      <DropdownItem key="admin" onPress={() => router.push('/admin')}>
+                        <div className="w-full flex items-center gap-2">
+                          <CrownIcon className="h-4 w-4" />
+                          Админ-панель
+                        </div>
+                      </DropdownItem>
+                    ) : null}
                   </DropdownSection>
+
+                  
                   
                   {/* Выход */}
                   <DropdownSection>
@@ -575,5 +610,30 @@ export function Navigation() {
         </ModalContent>
       </Modal>
     </>
+  );
+}
+
+function User({ name, role, userId, email }: { name: string, role: UserRole, userId: number, email: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Avatar
+        showFallback
+        src={(() => {
+          // Генерация SVG-аватарки на основе имени и ID пользователя
+          const avatarData = generateAppleWatchAvatar(
+            name, 
+            email || `user-${userId}`
+          );
+          return `data:image/svg+xml;utf8,${encodeURIComponent(avatarData.svg.color)}`;
+        })()}
+        name={name.charAt(0)}
+        className="cursor-pointer"
+        size="sm"
+      />
+      <div className="flex flex-col">
+        <span className="text-sm font-medium">{name}</span>
+        <span className="text-xs text-default-500">{role}</span>
+      </div>
+    </div>
   );
 }
