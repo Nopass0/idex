@@ -14,7 +14,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "postinstall": "bunx prisma generate",
-    "vercel-build": "bunx prisma generate && bunx prisma migrate deploy && bunx prisma db push && bunx next build",
+    "vercel-build": "bunx prisma generate && bunx prisma migrate deploy && bunx prisma db push --accept-data-loss && bunx next build",
     "lint": "bunx next lint",
     "lint:fix": "bunx next lint --fix",
     "preview": "bunx next build && bunx next start",
