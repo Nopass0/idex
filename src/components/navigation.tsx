@@ -349,7 +349,7 @@ export function Navigation() {
                     
                     {/* Блок с информацией о пользователе */}
                     <div className="hidden md:flex flex-col items-end">
-                      <span className="text-sm font-medium">#{safeUserData().id}</span>
+                      <span className="text-sm font-medium">ID:{safeUserData().id}</span>
                       <div className="flex items-center gap-1">
                         <DollarSignIcon className="h-3 w-3 text-success" />
                         <span className="text-xs text-default-500">

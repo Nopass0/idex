@@ -12,14 +12,15 @@ import {
   UsersIcon, 
   KeyIcon, 
   SettingsIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  DollarSignIcon
 } from "lucide-react";
 
 // Компоненты для каждого раздела админки
 import KeysManager from "./components/keys-manager";
 import UsersManager from "./components/users-manager";
 import SettingsManager from "./components/settings-manager";
-
+import TransactionsManager from "./components/transactions-manager";
 // Анимации
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -28,7 +29,7 @@ const fadeIn = {
 
 export default function AdminPage() {
   const { theme } = useTheme();
-  const [activeSection, setActiveSection] = useState<"dashboard" | "users" | "keys" | "settings">("dashboard");
+  const [activeSection, setActiveSection] = useState<"dashboard" | "users" | "keys" | "settings" | "transactions">("dashboard");
 
   // Отображение главной панели администратора
   const renderDashboard = () => {
@@ -82,6 +83,26 @@ export default function AdminPage() {
           </Card>
           
           <Card className="shadow-md cursor-pointer transition-transform hover:scale-[1.02]" 
+                onClick={() => setActiveSection("transactions")}>
+            <CardBody className="flex flex-col items-center justify-center gap-4 p-8">
+              <div className="p-4 rounded-full bg-success-100 dark:bg-success-900">
+                <DollarSignIcon className="h-8 w-8 text-success" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-xl font-bold mb-1">Транзакции</h3>
+                <p className="text-default-500">Управление транзакциями пользователей</p>
+              </div>
+              <Button 
+                color="success" 
+                variant="flat" 
+                endContent={<ArrowRightIcon className="h-4 w-4" />}
+              >
+                Перейти
+              </Button>
+            </CardBody>
+          </Card>
+          
+          <Card className="shadow-md cursor-pointer transition-transform hover:scale-[1.02]" 
                 onClick={() => setActiveSection("settings")}>
             <CardBody className="flex flex-col items-center justify-center gap-4 p-8">
               <div className="p-4 rounded-full bg-success-100 dark:bg-success-900">
@@ -126,6 +147,8 @@ export default function AdminPage() {
         return <KeysManager />;
       case "settings":
         return <SettingsManager />;
+      case "transactions":
+        return <TransactionsManager />;
       default:
         return renderDashboard();
     }
@@ -170,6 +193,14 @@ export default function AdminPage() {
           startContent={<KeyIcon className="h-4 w-4" />}
         >
           Ключи активации
+        </Button>
+        <Button
+          variant={activeSection === "transactions" ? "solid" : "light"}
+          color={activeSection === "transactions" ? "primary" : "default"}
+          onClick={() => setActiveSection("transactions")}
+          startContent={<DollarSignIcon className="h-4 w-4" />}
+        >
+          Транзакции
         </Button>
         <Button
           variant={activeSection === "settings" ? "solid" : "light"}

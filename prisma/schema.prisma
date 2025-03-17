@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,47 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  USER
-  ADMIN
-  GUEST // user, but now active
-}
-
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  CANCELLED
-  DISPUTED
-}
-
-enum DepositStatus {
-  PENDING
-  COMPLETED
-  FAILED
-}
-
 model User {
-  id               Int      @id @default(autoincrement())
-  name             String
-  email            String   @unique
-  password         String
-  role             UserRole @default(GUEST)
-  balanceUSDT      Float    @default(0)
-  balanceRUB       Float    @default(0)
-  walletAddress    String?  // TRC20 кошелек пользователя для пополнений
-  
-  // Добавленные отношения
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  tokens           Token[]
-  keys             Key[]
-  sentTransactions     Transaction[] @relation("Sender")
-  receivedTransactions Transaction[] @relation("Receiver")
-  disputes         Dispute[]
-  bankAccounts     BankAccount[]
-  devices          Device[]
-  messages         Message[]
-  deposits         Deposit[]     // Пополнения баланса
+  id            Int           @id @default(autoincrement())
+  name          String
+  email         String        @unique
+  password      String
+  role          UserRole      @default(GUEST)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  balanceRUB    Float         @default(0)
+  balanceUSDT   Float         @default(0)
+  walletAddress String?
+  bankAccounts  BankAccount[]
+  deposits      Deposit[]
+  devices       Device[]
+  disputes      Dispute[]
+  keys          Key[]
+  messages      Message[]
+  tokens        Token[]
+  Transaction   Transaction[]
 
   @@index([name])
 }
@@ -59,55 +34,55 @@ model Token {
   id        Int      @id @default(autoincrement())
   token     String   @unique
   userId    Int
-  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Key {
   id        Int      @id @default(autoincrement())
   key       String   @unique
   userId    Int
-  isActive  Boolean  @default(false) // active key used (true) or not activated (false)
-  user      User     @relation(fields: [userId], references: [id])
+  isActive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
 }
 
-// Новые модели для расширенной функциональности
 model Transaction {
-  id           Int               @id @default(autoincrement())
-  amount       Float
-  currency     String            // USDT или RUB
-  status       TransactionStatus @default(PENDING)
-  description  String?
-  
-  senderId     Int
-  sender       User              @relation("Sender", fields: [senderId], references: [id])
-  
-  receiverId   Int
-  receiver     User              @relation("Receiver", fields: [receiverId], references: [id])
-  
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  
-  disputes     Dispute[]
+  id                 Int               @id @default(autoincrement())
+  status             TransactionStatus
+  description        String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  amountRUB          Float             @default(0)
+  amountToChargeRUB  Float             @default(0)
+  amountToChargeUSDT Float             @default(0)
+  amountUSDT         Float             @default(0)
+  bankName           String?
+  cardNumber         String?
+  confirmedAt        DateTime?
+  exchangeRate       Float             @default(0)
+  isMock             Boolean           @default(false)
+  trafficType        TrafficType?
+  userId             Int?
+  phoneNumber        String?
+  disputes           Dispute[]
+  Receipt            Receipt[]
+  User               User?             @relation(fields: [userId], references: [id])
 }
 
 model Dispute {
-  id            Int      @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   reason        String
   description   String
-  resolved      Boolean  @default(false)
-  
+  resolved      Boolean     @default(false)
   transactionId Int
-  transaction   Transaction @relation(fields: [transactionId], references: [id])
-  
   userId        Int
-  user          User     @relation(fields: [userId], references: [id])
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  user          User        @relation(fields: [userId], references: [id])
 }
 
 model BankAccount {
@@ -116,61 +91,90 @@ model BankAccount {
   accountNumber String
   bankName      String
   details       String?
-  
   userId        Int
-  user          User     @relation(fields: [userId], references: [id])
-  
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
 }
 
 model Device {
-  id            Int      @id @default(autoincrement())
-  deviceName    String
-  deviceType    String
-  lastLogin     DateTime
-  ipAddress     String
-  
-  userId        Int
-  user          User     @relation(fields: [userId], references: [id])
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  deviceName String
+  deviceType String
+  lastLogin  DateTime
+  ipAddress  String
+  userId     Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id])
 }
 
 model Message {
-  id            Int      @id @default(autoincrement())
-  title         String
-  content       String
-  isRead        Boolean  @default(false)
-  
-  userId        Int
-  user          User     @relation(fields: [userId], references: [id])
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  isRead    Boolean  @default(false)
+  userId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Deposit {
   id              Int           @id @default(autoincrement())
-  amount          Float         // Сумма пополнения в USDT
-  amountAfterFee  Float         // Сумма после вычета комиссии
-  transactionHash String?       // Хеш транзакции TRC20
+  amount          Float
+  amountAfterFee  Float
+  transactionHash String?
   status          DepositStatus @default(PENDING)
-  
   userId          Int
-  user            User          @relation(fields: [userId], references: [id])
-  
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  user            User          @relation(fields: [userId], references: [id])
 }
 
 model SystemSettings {
-  id                 Int      @id @default(autoincrement())
-  commissionRate     Float    @default(9.0)  // Комиссия в процентах, по умолчанию 9%
-  systemWalletAddress String   // Системный TRC20 кошелек для пополнений
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  
+  id                  Int      @id @default(autoincrement())
+  commissionRate      Float    @default(9.0)
+  systemWalletAddress String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
   @@map("system_settings")
+}
+
+model Receipt {
+  id            Int         @id @default(autoincrement())
+  filePath      String
+  isVerified    Boolean     @default(false)
+  isFake        Boolean     @default(false)
+  transactionId Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime
+  Transaction   Transaction @relation(fields: [transactionId], references: [id])
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  GUEST
+}
+
+enum TransactionStatus {
+  PENDING
+  VERIFICATION
+  FINALIZATION
+  ACTIVE
+  HISTORY
+  CANCELLED
+}
+
+enum DepositStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum TrafficType {
+  SBP
+  CARD
 }
