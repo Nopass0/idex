@@ -2,6 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
+/* HeroUI цветовые переменные */
+:root {
+  /* Primary цвет для светлой темы */
+  --heroui-primary-50: #e6f0ec;
+  --heroui-primary-100: #cce2d9;
+  --heroui-primary-200: #99c4b3;
+  --heroui-primary-300: #66a78d;
+  --heroui-primary-400: #338967;
+  --heroui-primary-500: #006039; /* Основной primary цвет */
+  --heroui-primary-600: #004e2e;
+  --heroui-primary-700: #003a22;
+  --heroui-primary-800: #002717;
+  --heroui-primary-900: #00130b;
+}
+
+.dark {
+  /* Primary цвет для темной темы */
+  --heroui-primary-50: #e6f5ed;
+  --heroui-primary-100: #cceadb;
+  --heroui-primary-200: #99d5b7;
+  --heroui-primary-300: #66c093;
+  --heroui-primary-400: #33ab6f;
+  --heroui-primary-500: #008047; /* Слегка светлее для темной темы */
+  --heroui-primary-600: #006639;
+  --heroui-primary-700: #004d2b;
+  --heroui-primary-800: #00331c;
+  --heroui-primary-900: #00190e;
+}
+
 /* Базовые анимации для замены framer-motion */
 @layer utilities {
   /* Плавное появление */

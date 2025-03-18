@@ -58,6 +58,7 @@ model Transaction {
   amountRUB          Float             @default(0)
   amountToChargeRUB  Float             @default(0)
   amountToChargeUSDT Float             @default(0)
+  inProgress         Boolean           @default(false)
   amountUSDT         Float             @default(0)
   bankName           String?
   cardNumber         String?

@@ -38,7 +38,7 @@ export default function HomePage() {
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] p-4">
       <div className="max-w-3xl text-center space-y-6 animate-fadeIn">
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl animate-scaleIn">
-          IDE<span className="text-primary">X</span>
+          CHA<span className="text-[#006039]">$</span>E
         </h1>
         <p className="text-xl text-default-500 max-w-2xl mx-auto animate-fadeInDelay">
           Передовая P2P платформа для обработки и управления финансовыми транзакциями.

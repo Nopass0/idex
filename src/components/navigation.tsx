@@ -293,7 +293,7 @@ export function Navigation() {
       <Navbar maxWidth="xl" className="relative">
         <NavbarBrand>
           <Link href="/" className="font-bold text-xl text-inherit">
-            IDE<span className="text-primary">X</span>
+            CHA<span style={{color: "#006039"}}>$</span>E
           </Link>
         </NavbarBrand>
         

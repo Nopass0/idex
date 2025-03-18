@@ -4,7 +4,361 @@ import { TransactionStatus, TrafficType } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "../trpc";
 
 export const transactionRouter = createTRPCRouter({
-  // Получение списка всех транзакций с пагинацией и фильтрацией
+  // Получение списка транзакций для текущего пользователя с пагинацией и фильтрацией
+  getUserTransactions: protectedProcedure
+    .input(
+      z.object({
+        page: z.number().int().positive().default(1),
+        perPage: z.number().int().positive().max(100).default(10),
+        sortBy: z.string().optional(),
+        sortDirection: z.enum(["asc", "desc"]).default("desc"),
+        search: z.string().optional(),
+        status: z.nativeEnum(TransactionStatus).optional(),
+        inProgress: z.boolean().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { page, perPage, sortBy, sortDirection, search, status, inProgress, startDate, endDate } = input;
+      const skip = (page - 1) * perPage;
+      
+      // Формируем условие для поиска и фильтрации
+      const where: any = {
+        userId: ctx.user.id, // Только транзакции текущего пользователя
+      };
+      
+      if (search) {
+        where.OR = [
+          { description: { contains: search, mode: "insensitive" } },
+          { bankName: { contains: search, mode: "insensitive" } },
+          { cardNumber: { contains: search, mode: "insensitive" } },
+          { phoneNumber: { contains: search, mode: "insensitive" } },
+        ];
+      }
+
+      if (status) {
+        where.status = status;
+      }
+
+      // Добавляем фильтр для транзакций "в работе"
+      if (inProgress !== undefined) {
+        where.inProgress = inProgress;
+      }
+
+      if (startDate) {
+        const startDateTime = new Date(startDate);
+        where.createdAt = {
+          ...(where.createdAt || {}),
+          gte: startDateTime
+        };
+      }
+
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        where.createdAt = {
+          ...(where.createdAt || {}),
+          lte: endDateTime
+        };
+      }
+
+      // Формируем объект для сортировки
+      const orderBy: any = {};
+      if (sortBy) {
+        orderBy[sortBy] = sortDirection;
+      } else {
+        orderBy.createdAt = sortDirection;
+      }
+
+      try {
+        // Получаем транзакции с пагинацией
+        const [transactions, totalCount] = await Promise.all([
+          ctx.db.transaction.findMany({
+            where,
+            orderBy,
+            skip,
+            take: perPage,
+            include: {
+              Receipt: true,
+              User: true
+            }
+          }),
+          ctx.db.transaction.count({ where })
+        ]);
+
+        // Вычисляем общее количество страниц
+        const totalPages = Math.ceil(totalCount / perPage);
+
+        return {
+          transactions,
+          pagination: {
+            page,
+            perPage,
+            totalCount,
+            totalPages
+          }
+        };
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Не удалось получить список транзакций",
+        });
+      }
+    }),
+
+  // Установка статуса "в работе" для транзакции
+  setTransactionInProgress: protectedProcedure
+    .input(z.object({ 
+      id: z.number().int(),
+      inProgress: z.boolean().default(true)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        // Проверяем, что транзакция принадлежит текущему пользователю
+        const transaction = await ctx.db.transaction.findUnique({
+          where: { id: input.id }
+        });
+
+        if (!transaction) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Транзакция не найдена",
+          });
+        }
+
+        if (transaction.userId !== ctx.user.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "У вас нет доступа к этой транзакции",
+          });
+        }
+
+        // Проверяем, что транзакция "в работе"
+        if (!transaction.inProgress) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Транзакция должна быть в работе",
+          });
+        }
+
+        // Здесь проверка чека (заглушка: всегда возвращает true)
+        const isValidReceipt = true; // В реальном сценарии здесь была бы проверка чека
+
+        // Сохраняем чек
+        const receipt = await ctx.db.receipt.create({
+          data: {
+            filePath: input.receiptFile,
+            isVerified: isValidReceipt,
+            isFake: false, // В реальном сценарии это определялось бы проверкой
+            transactionId: input.id,
+          }
+        });
+
+        // Обновляем статус транзакции на HISTORY и снимаем флаг "в работе"
+        const updatedTransaction = await ctx.db.transaction.update({
+          where: { id: input.id },
+          data: {
+            status: TransactionStatus.ACTIVE,
+            inProgress: false,
+            confirmedAt: new Date()
+          }
+        });
+
+        return {
+          transaction: updatedTransaction,
+          receipt,
+          success: true
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Не удалось принять транзакцию",
+        });
+      }
+    }),
+
+  // Отклонение транзакции с указанием причины
+  rejectTransaction: protectedProcedure
+    .input(z.object({ 
+      id: z.number().int(),
+      reason: z.string(),
+      receiptFile: z.string().optional(), // Опционально: Base64 или путь к файлу
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        // Проверяем, что транзакция принадлежит текущему пользователю
+        const transaction = await ctx.db.transaction.findUnique({
+          where: { id: input.id }
+        });
+
+        if (!transaction) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Транзакция не найдена",
+          });
+        }
+
+        if (transaction.userId !== ctx.user.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "У вас нет доступа к этой транзакции",
+          });
+        }
+
+        // Обновляем статус транзакции на CANCELLED и снимаем флаг "в работе"
+        const updatedTransaction = await ctx.db.transaction.update({
+          where: { id: input.id },
+          data: {
+            status: TransactionStatus.CANCELLED,
+            inProgress: false,
+            description: `Отклонено: ${input.reason}`
+          }
+        });
+
+        // Если есть файл изображения чека, сохраняем его
+        if (input.receiptFile) {
+          await ctx.db.receipt.create({
+            data: {
+              filePath: input.receiptFile,
+              isVerified: false,
+              isFake: false,
+              transactionId: input.id,
+              updatedAt: new Date()
+            }
+          });
+        }
+
+        return {
+          transaction: updatedTransaction,
+          success: true
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Не удалось отклонить транзакцию",
+        });
+      }
+    }),
+
+  // Принятие транзакции с прикреплением чека
+  acceptTransaction: protectedProcedure
+    .input(z.object({ 
+      id: z.number().int(),
+      receiptFile: z.string(), // Base64 или путь к файлу с чеком
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        // Проверяем, что транзакция принадлежит текущему пользователю
+        const transaction = await ctx.db.transaction.findUnique({
+          where: { id: input.id }
+        });
+
+        if (!transaction) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Транзакция не найдена",
+          });
+        }
+
+        if (transaction.userId !== ctx.user.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "У вас нет доступа к этой транзакции",
+          });
+        }
+
+        // Проверка наличия чека
+        if (!input.receiptFile) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Необходимо прикрепить чек оплаты",
+          });
+        }
+
+        // Здесь проверка чека (заглушка: всегда возвращает true)
+        const isValidReceipt = true; // В реальном сценарии здесь была бы проверка чека
+
+        // Сохраняем чек
+        const receipt = await ctx.db.receipt.create({
+          data: {
+            filePath: input.receiptFile,
+            isVerified: isValidReceipt,
+            isFake: false, // В реальном сценарии это определялось бы проверкой
+            transactionId: input.id,
+            updatedAt: new Date()
+          }
+        });
+
+        // Обновляем статус транзакции на ACTIVE и снимаем флаг "в работе"
+        const updatedTransaction = await ctx.db.transaction.update({
+          where: { id: input.id },
+          data: {
+            status: TransactionStatus.ACTIVE,
+            inProgress: false,
+            confirmedAt: new Date()
+          }
+        });
+
+        return {
+          transaction: updatedTransaction,
+          receipt,
+          success: true
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Не удалось принять транзакцию",
+        });
+      }
+    }),
+
+  // Получение одной транзакции по id для пользователя
+  getUserTransactionById: protectedProcedure
+    .input(z.object({ id: z.number().int() }))
+    .query(async ({ ctx, input }) => {
+      try {
+        const transaction = await ctx.db.transaction.findUnique({
+          where: { id: input.id },
+          include: {
+            receipts: true,
+            disputes: true
+          }
+        });
+
+        if (!transaction) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Транзакция не найдена",
+          });
+        }
+
+        // Проверяем, что транзакция принадлежит текущему пользователю
+        if (transaction.userId !== ctx.user.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "У вас нет доступа к этой транзакции",
+          });
+        }
+
+        return transaction;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Не удалось получить данные транзакции",
+        });
+      }
+    }),
+
+  // Получение списка всех транзакций с пагинацией и фильтрацией (админский доступ)
   getTransactions: adminProcedure
     .input(
       z.object({
@@ -34,7 +388,7 @@ export const transactionRouter = createTRPCRouter({
           { cardNumber: { contains: search, mode: "insensitive" } },
           { phoneNumber: { contains: search, mode: "insensitive" } },
           { 
-            user: { 
+            User: { 
               OR: [
                 { name: { contains: search, mode: "insensitive" } },
                 { email: { contains: search, mode: "insensitive" } }
@@ -90,14 +444,14 @@ export const transactionRouter = createTRPCRouter({
             skip,
             take: perPage,
             include: {
-              user: {
+              User: {
                 select: {
                   id: true,
                   name: true,
                   email: true
                 }
               },
-              receipts: true
+              Receipt: true
             }
           }),
           ctx.db.transaction.count({ where })
@@ -123,7 +477,7 @@ export const transactionRouter = createTRPCRouter({
       }
     }),
 
-  // Получение одной транзакции по id
+  // Получение одной транзакции по id (админский доступ)
   getTransactionById: adminProcedure
     .input(z.object({ id: z.number().int() }))
     .query(async ({ ctx, input }) => {
@@ -131,14 +485,14 @@ export const transactionRouter = createTRPCRouter({
         const transaction = await ctx.db.transaction.findUnique({
           where: { id: input.id },
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
                 email: true
               }
             },
-            receipts: true,
+            Receipt: true,
             disputes: true
           }
         });
@@ -161,7 +515,7 @@ export const transactionRouter = createTRPCRouter({
       }
     }),
 
-  // Создание новой транзакции
+  // Создание новой транзакции (админский доступ)
   createTransaction: adminProcedure
     .input(
       z.object({
@@ -179,6 +533,7 @@ export const transactionRouter = createTRPCRouter({
         trafficType: z.nativeEnum(TrafficType).optional(),
         userId: z.number().int().optional(),
         phoneNumber: z.string().optional(),
+        inProgress: z.boolean().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -200,9 +555,10 @@ export const transactionRouter = createTRPCRouter({
             trafficType: input.trafficType,
             phoneNumber: input.phoneNumber,
             userId: input.userId,
+            inProgress: input.inProgress,
           },
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -239,7 +595,7 @@ export const transactionRouter = createTRPCRouter({
       }
     }),
 
-  // Обновление существующей транзакции
+  // Обновление существующей транзакции (админский доступ)
   updateTransaction: adminProcedure
     .input(
       z.object({
@@ -258,6 +614,7 @@ export const transactionRouter = createTRPCRouter({
         trafficType: z.nativeEnum(TrafficType).optional().nullable(),
         userId: z.number().int().optional().nullable(),
         phoneNumber: z.string().optional(),
+        inProgress: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -287,7 +644,7 @@ export const transactionRouter = createTRPCRouter({
           where: { id },
           data: updateData,
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -331,7 +688,7 @@ export const transactionRouter = createTRPCRouter({
       }
     }),
 
-  // Удаление транзакции
+  // Удаление транзакции (админский доступ)
   deleteTransaction: adminProcedure
     .input(z.object({ id: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
@@ -374,7 +731,7 @@ export const transactionRouter = createTRPCRouter({
       }
     }),
 
-  // Получение списка всех пользователей для выбора получателя
+  // Получение списка всех пользователей для выбора получателя (админский доступ)
   getUsersForSelect: adminProcedure.query(async ({ ctx }) => {
     try {
       const users = await ctx.db.user.findMany({
@@ -403,4 +760,4 @@ export const transactionRouter = createTRPCRouter({
   })
 });
 
-export default transactionRouter;
+export default transactionRouter; 

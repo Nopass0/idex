@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { api } from "@/trpc/react";
+import { TransactionStatus, TrafficType } from "@prisma/client";
+
+// UI Components
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import { Spinner } from "@heroui/spinner";
-import { Input } from "@heroui/input";
+import { Input, Textarea } from "@heroui/input";
 import { Tabs, Tab } from "@heroui/tabs";
 import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from "@heroui/table";
 import { Pagination } from "@heroui/pagination";
@@ -13,8 +18,9 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@herou
 import { Button } from "@heroui/button";
 import { Badge } from "@heroui/badge";
 import { Select, SelectItem } from "@heroui/select";
-import { useAuth } from "@/providers/auth-provider";
-import { useRouter } from "next/navigation";
+import { Alert } from "@heroui/alert";
+
+// Icons
 import { 
   BanknoteIcon,
   CopyIcon,
@@ -28,228 +34,15 @@ import {
   CheckIcon,
   EyeIcon,
   DownloadIcon,
-  XIcon
+  XIcon,
+  PhoneIcon,
+  PlusIcon,
+  BriefcaseIcon,
+  UploadIcon,
+  AlertCircleIcon
 } from "lucide-react";
 
-// Типы данных для выплат
-interface Recipient {
-  bank: string;
-  cardNumber: string;
-}
-
-interface AmountToCharge {
-  usdt: number;
-  rub: number;
-}
-
-interface AttachedFile {
-  name: string;
-  size: string;
-}
-
-interface Withdrawal {
-  id: number;
-  status: string;
-  createdAt: string;
-  confirmedAt: string;
-  amountRUB: number;
-  amountUSDT: number;
-  recipient: Recipient;
-  amountToCharge: AmountToCharge;
-  exchangeRate: number;
-  attachedFiles: AttachedFile[];
-}
-
-// Моковые данные для выплат
-const mockWithdrawals: Withdrawal[] = [
-  {
-    id: 1648230,
-    status: "Время истекло",
-    createdAt: "13.03.25 21:04",
-    confirmedAt: "13.03.25 22:34",
-    amountRUB: 5000,
-    amountUSDT: 56.47,
-    recipient: {
-      bank: "Сбербанк (MIR)",
-      cardNumber: "2202 2063 8306 4545"
-    },
-    amountToCharge: {
-      usdt: 52.21,
-      rub: 5110.0
-    },
-    exchangeRate: 88.54,
-    attachedFiles: [
-      {
-        name: "Документ-2025-03-14-023006",
-        size: "44.0 KB"
-      }
-    ]
-  },
-  {
-    id: 1648196,
-    status: "Ожидание подтверждения",
-    createdAt: "13.03.25 21:08",
-    confirmedAt: "13.03.25 22:25",
-    amountRUB: 13400,
-    amountUSDT: 151.40,
-    recipient: {
-      bank: "Сбербанк (MIR)",
-      cardNumber: "2202 2063 2964 1776"
-    },
-    amountToCharge: {
-      usdt: 155.19,
-      rub: 12753.68
-    },
-    exchangeRate: 88.51,
-    attachedFiles: []
-  },
-  {
-    id: 1648143,
-    status: "Завершено",
-    createdAt: "13.03.25 21:04",
-    confirmedAt: "13.03.25 22:37",
-    amountRUB: 5136.8,
-    amountUSDT: 58.03,
-    recipient: {
-      bank: "Сбербанк (MIR)",
-      cardNumber: "2202 2069 6486 5307"
-    },
-    amountToCharge: {
-      usdt: 59.31,
-      rub: 5246.99
-    },
-    exchangeRate: 88.5,
-    attachedFiles: []
-  },
-  {
-    id: 1648126,
-    status: "Ожидание подтверждения",
-    createdAt: "13.03.25 21:51",
-    confirmedAt: "13.03.25 22:41",
-    amountRUB: 5000,
-    amountUSDT: 62.04,
-    recipient: {
-      bank: "Тинькофф",
-      cardNumber: "+7 901 898 79 01"
-    },
-    amountToCharge: {
-      usdt: 63.41,
-      rub: 5621.60
-    },
-    exchangeRate: 88.65,
-    attachedFiles: []
-  },
-  {
-    id: 1648016,
-    status: "Завершено",
-    createdAt: "13.03.25 21:19",
-    confirmedAt: "13.03.25 22:36",
-    amountRUB: 5002.9,
-    amountUSDT: 56.40,
-    recipient: {
-      bank: "Qiwi Банк (CARD)",
-      cardNumber: "+7 990 167 73 45"
-    },
-    amountToCharge: {
-      usdt: 57.70,
-      rub: 5112.04
-    },
-    exchangeRate: 88.59,
-    attachedFiles: []
-  },
-  {
-    id: 1647955,
-    status: "Ожидание подтверждения",
-    createdAt: "13.03.25 21:23",
-    confirmedAt: "13.03.25 22:40",
-    amountRUB: 5500,
-    amountUSDT: 62.03,
-    recipient: {
-      bank: "Банк ВТБ",
-      cardNumber: "+7 999 167 98 33"
-    },
-    amountToCharge: {
-      usdt: 63.40,
-      rub: 5623.04
-    },
-    exchangeRate: 88.66,
-    attachedFiles: []
-  },
-  {
-    id: 1647871,
-    status: "Финализация",
-    createdAt: "13.03.25 21:09",
-    confirmedAt: "13.03.25 21:14",
-    amountRUB: 14500,
-    amountUSDT: 160.71,
-    recipient: {
-      bank: "Банк ВТБ",
-      cardNumber: "+7 962 324 24 80"
-    },
-    amountToCharge: {
-      usdt: 164.24,
-      rub: 14503.50
-    },
-    exchangeRate: 88.57,
-    attachedFiles: []
-  },
-  {
-    id: 1647725,
-    status: "Ожидание подтверждения",
-    createdAt: "13.03.25 20:47",
-    confirmedAt: "13.03.25 21:32",
-    amountRUB: 5003.4,
-    amountUSDT: 56.47,
-    recipient: {
-      bank: "Альфа-БАНК",
-      cardNumber: "+7 977 394 81 83"
-    },
-    amountToCharge: {
-      usdt: 57.71,
-      rub: 5112.64
-    },
-    exchangeRate: 88.58,
-    attachedFiles: []
-  },
-  {
-    id: 1647720,
-    status: "Финализация",
-    createdAt: "13.03.25 20:46",
-    confirmedAt: "13.03.25 21:30",
-    amountRUB: 6600.6,
-    amountUSDT: 74.52,
-    recipient: {
-      bank: "Альфа-БАНК",
-      cardNumber: "+7 921 562 54 34"
-    },
-    amountToCharge: {
-      usdt: 76.72,
-      rub: 6796.30
-    },
-    exchangeRate: 88.58,
-    attachedFiles: []
-  },
-  {
-    id: 1647619,
-    status: "Ожидание подтверждения",
-    createdAt: "13.03.25 19:19",
-    confirmedAt: "13.03.25 19:30",
-    amountRUB: 17000,
-    amountUSDT: 216.20,
-    recipient: {
-      bank: "Qiwi Банк (CARD)",
-      cardNumber: "+7 912 205 04 96"
-    },
-    amountToCharge: {
-      usdt: 221.03,
-      rub: 19627.40
-    },
-    exchangeRate: 88.78,
-    attachedFiles: []
-  }
-];
-
-// Банки для фильтра из второго документа
+// Банки для фильтра
 const banks = [
   "Все",
   "Сбербанк",
@@ -332,70 +125,6 @@ const banks = [
   "КБ Пойдём!",
   "Банк Приморье",
   "Банк ВБРР",
-  "Газэнергобанк",
-  "Банк Калуга",
-  "АКБ ТЕНДЕР-БАНК",
-  "МТС Деньги (ЭКСИ Банк)",
-  "Первый Дортрансбанк",
-  "ЧЕЛЯБИНВЕСТБАНК",
-  "Банк Акцепт",
-  "А-Мобаил",
-  "Ставропольпромстройбанк",
-  "АИКБ Енисейский объединенный банк",
-  "КБ «Черноморский банк развития»",
-  "Датабанк",
-  "КБ Хлынов",
-  "АКБ Ланта-Банк",
-  "Банк Национальный стандарт",
-  "Кредит Урал Банк",
-  "АКБ Трансстройбанк",
-  "Вологжанин",
-  "Прио-Внешторгбанк",
-  "НИКО-БАНК",
-  "Банк ИТУРУП",
-  "РЕАЛИСТ БАНК",
-  "Авито Кошелек",
-  "Универсал",
-  "Автоторгбанк",
-  "Банк РМП",
-  "Банк БЖФ",
-  "АКБ Энергобанк",
-  "Банк ФИНАМ",
-  "Таврический Банк",
-  "Вайлдберриз Банк",
-  "Душанбе Сити",
-  "КБ Центр-инвест",
-  "Первый Инвестиционный Банк",
-  "Драйв Клик Банк",
-  "КАМКОМБАНК",
-  "ПНКО ЭЛПЛАТ",
-  "Банк Интеза",
-  "ИК Банк",
-  "Далена Банк",
-  "АКИБАНК",
-  "Хакасский муниципальный банк",
-  "Эсхата",
-  "Спитамен Банк",
-  "КБ ЭНЕРГОТРАНСБАНК",
-  "ОРИЁНБАНК",
-  "Экономбанк",
-  "Банк Арванд",
-  "СОЦИУМ-БАНК",
-  "ВЛАДБИЗНЕСБАНК",
-  "Банк Саратов",
-  "АКБ Форштадт",
-  "АКБ ЕВРОФИНАНС МОСНАРБАНК",
-  "Братский Народный Банк",
-  "ЧЕЛИНДБАНК",
-  "Амонатбанк",
-  "Евроальянс Банк",
-  "Инбанк",
-  "Тавхидбанк",
-  "КБ РУСНАРБАНК",
-  "E-wallet",
-  "ПУ Банк (Лучи)",
-  "БАНК ОРЕНБУРГ",
-  "банк Элита",
   "Газтрансбанк",
   "НБКО Васл",
   "ЮГ-Инвестбанк",
@@ -409,150 +138,308 @@ const banks = [
 ];
 
 // Типы профилей для фильтра
-const profileTypes = [
-  "СБП",
-  "Банковская карта"
+const profileTypes = ["Все", "СБП", "Банковская карта"];
+
+// Причины отклонения транзакций
+const rejectionReasons = [
+  "Высокий риск мошенничества",
+  "Получатель должен посетить банк",
+  "Перевод отклонен банком получателя",
+  "Технические проблемы",
+  "Неверные реквизиты",
+  "Другая причина"
 ];
 
-// Функция для форматирования копирования
-const copyToClipboard = (text) => {
-  navigator.clipboard.writeText(text);
+// Вспомогательные функции
+const formatDate = (date: Date | string): string => {
+  const d = new Date(date);
+  return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear().toString().slice(2)} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 };
 
-export default function WithdrawalsPage() {
-  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
-  const router = useRouter();
+const translateStatus = (status: TransactionStatus): string => {
+  const statusMap: Record<TransactionStatus, string> = {
+    [TransactionStatus.PENDING]: "Ожидание подтверждения",
+    [TransactionStatus.VERIFICATION]: "Проверка",
+    [TransactionStatus.FINALIZATION]: "Финализация",
+    [TransactionStatus.ACTIVE]: "Завершено",
+    [TransactionStatus.HISTORY]: "История",
+    [TransactionStatus.CANCELLED]: "Отменено"
+  };
+  return statusMap[status] || status;
+};
 
-  // Состояния для управления интерфейсом
+export default function TransactionsPage() {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Simple authentication check - replace with your actual auth logic
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  
+  // Состояние страницы
   const [currentTab, setCurrentTab] = useState("all");
   const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selectedWithdrawal, setSelectedWithdrawal] = useState<Withdrawal | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [balance, setBalance] = useState("0.00");
+  const [perPage, setPerPage] = useState(5);
+  const [search, setSearch] = useState("");
   
-  // Обновленные состояния для мультиселекта
-  const [selectedProfileTypes, setSelectedProfileTypes] = useState(new Set([]));
-  const [selectedBanksSBP, setSelectedBanksSBP] = useState(new Set([]));
+  // Состояние фильтров
+  const [selectedProfileTypes, setSelectedProfileTypes] = useState(new Set(["Все"]));
+  const [selectedBanksSBP, setSelectedBanksSBP] = useState(new Set(["Все"]));
   const [selectedBanksByCard, setSelectedBanksByCard] = useState(new Set(["Все"]));
+  const [balance, setBalance] = useState("0");
+  
+  // Состояние элементов UI
+  const [alert, setAlert] = useState({
+    isVisible: false,
+    message: "",
+    color: "success" as "success" | "danger" | "warning" | "primary"
+  });
   const [copySuccess, setCopySuccess] = useState("");
-  const [isLoading, setIsLoading] = useState(false); // Для индикации загрузки при принятии/отклонении
+  
+  // Модальные окна
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<number | null>(null);
+  const [confirmationTime, setConfirmationTime] = useState("");
+  const [selectedReason, setSelectedReason] = useState("");
+  const [otherReason, setOtherReason] = useState("");
+  const [receiptFile, setReceiptFile] = useState<string | null>(null);
+  
+  // Определение фильтров для API запроса
+  const statusFilter = currentTab === "all" 
+    ? undefined 
+    : currentTab === "active" 
+      ? TransactionStatus.PENDING
+      : currentTab === "verification" 
+        ? TransactionStatus.VERIFICATION
+        : currentTab === "finalization" 
+          ? TransactionStatus.FINALIZATION
+          : currentTab === "history" 
+            ? TransactionStatus.ACTIVE
+            : currentTab === "canceled" 
+              ? TransactionStatus.CANCELLED
+              : undefined;
+  
+  const inProgressFilter = currentTab === "inProgress" ? true : undefined;
 
-  // Проверка аутентификации при загрузке страницы
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push("/login");
+  // API запросы
+  const transactionsQuery = api.transaction.getUserTransactions.useQuery(
+    {
+      page,
+      perPage,
+      status: statusFilter,
+      inProgress: inProgressFilter,
+      search
+    },
+    {
+      enabled: isAuthenticated,
+      refetchOnWindowFocus: false
     }
-  }, [isAuthenticated, authLoading, router]);
+  );
+  
+  const { data: transactionsData, isLoading: isLoadingTransactions, refetch: refetchTransactions } = transactionsQuery;
 
-  // Фильтрация выплат по активному табу
-  const filteredWithdrawals = mockWithdrawals.filter(withdrawal => {
-    switch (currentTab) {
-      case "active":
-        return withdrawal.status === "Ожидание подтверждения";
-      case "verification":
-        return withdrawal.status === "Проверка";
-      case "finalization":
-        return withdrawal.status === "Финализация";
-      case "waiting":
-        return withdrawal.status === "Ожидание";
-      case "history":
-        return withdrawal.status === "Завершено";
-      case "canceled":
-        return withdrawal.status === "Отменено";
-      default:
-        return true;
+  const { data: transactionDetails, isLoading: isLoadingDetails } = api.transaction.getUserTransactionById.useQuery(
+    { id: selectedTransactionId || 0 },
+    { 
+      enabled: !!selectedTransactionId && (isDetailsModalOpen || isConfirmModalOpen || isRejectModalOpen),
+      refetchOnWindowFocus: false
+    }
+  );
+
+  // Мутации
+  const setInProgressMutation = api.transaction.setTransactionInProgress.useMutation({
+    onSuccess: () => {
+      setAlert({ isVisible: true, message: "Транзакция добавлена в работу", color: "success" });
+      refetchTransactions();
+    },
+    onError: (error) => {
+      setAlert({ isVisible: true, message: `Ошибка: ${error.message}`, color: "danger" });
     }
   });
 
-  // Пагинация
-  const paginatedWithdrawals = filteredWithdrawals.slice(
-    (page - 1) * rowsPerPage,
-    page * rowsPerPage
-  );
+  const acceptTransactionMutation = api.transaction.acceptTransaction.useMutation({
+    onSuccess: () => {
+      setAlert({ isVisible: true, message: "Транзакция успешно принята", color: "success" });
+      setIsConfirmModalOpen(false);
+      setReceiptFile(null);
+      refetchTransactions();
+    },
+    onError: (error) => {
+      setAlert({ isVisible: true, message: `Ошибка: ${error.message}`, color: "danger" });
+    }
+  });
 
-  // Обработчик копирования
-  const handleCopy = (text) => {
-    copyToClipboard(text);
-    setCopySuccess("Скопировано!");
-    setTimeout(() => setCopySuccess(""), 2000);
+  const rejectTransactionMutation = api.transaction.rejectTransaction.useMutation({
+    onSuccess: () => {
+      setAlert({ isVisible: true, message: "Транзакция отклонена", color: "success" });
+      setIsRejectModalOpen(false);
+      setSelectedReason("");
+      setOtherReason("");
+      setReceiptFile(null);
+      refetchTransactions();
+    },
+    onError: (error) => {
+      setAlert({ isVisible: true, message: `Ошибка: ${error.message}`, color: "danger" });
+    }
+  });
+
+  // Вспомогательные функции
+  const showAlert = (message: string, color: "success" | "danger" | "warning" | "primary") => {
+    setAlert({ isVisible: true, message, color });
+    setTimeout(() => setAlert(prev => ({ ...prev, isVisible: false })), 3000);
   };
 
-  // Обработчик принятия транзакции
-  const handleAcceptWithdrawal = (withdrawal: Withdrawal) => {
-    setIsLoading(true);
-    // В реальном приложении здесь был бы API-запрос
-    setTimeout(() => {
-      const updatedWithdrawals = mockWithdrawals.map(item => {
-        if (item.id === withdrawal.id) {
-          return { ...item, status: "Финализация" };
-        }
-        return item;
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        setAlert({ isVisible: true, message: "Скопировано в буфер обмена", color: "success" });
+        setCopySuccess("Скопировано!");
+        setTimeout(() => setCopySuccess(""), 1500);
+      })
+      .catch(() => {
+        setAlert({ isVisible: true, message: "Не удалось скопировать текст", color: "danger" });
       });
-      
-      // В реальном приложении здесь была бы обработка ответа от сервера
-      alert(`Транзакция №${withdrawal.id} принята`);
-      setIsLoading(false);
-    }, 1000);
   };
 
-  // Обработчик отклонения транзакции
-  const handleRejectWithdrawal = (withdrawal: Withdrawal) => {
-    setIsLoading(true);
-    // В реальном приложении здесь был бы API-запрос
-    setTimeout(() => {
-      const updatedWithdrawals = mockWithdrawals.map(item => {
-        if (item.id === withdrawal.id) {
-          return { ...item, status: "Отменено" };
-        }
-        return item;
-      });
-      
-      // В реальном приложении здесь была бы обработка ответа от сервера
-      alert(`Транзакция №${withdrawal.id} отклонена`);
-      setIsLoading(false);
-    }, 1000);
+  const renderSelectedItems = (
+    selectedItems: Set<string>, 
+    setSelectedItems: React.Dispatch<React.SetStateAction<Set<string>>>
+  ) => {
+    const items = Array.from(selectedItems);
+    return (
+      <div className="flex flex-wrap gap-1 mt-2">
+        {items.map((item) => (
+          <Chip 
+            key={item} 
+            onClose={() => {
+              const newSelected = new Set(selectedItems);
+              newSelected.delete(item);
+              setSelectedItems(newSelected);
+            }}
+            variant="flat"
+            size="sm"
+          >
+            {item}
+          </Chip>
+        ))}
+      </div>
+    );
   };
 
-  // Открыть модальное окно с деталями выплаты
-  const handleOpenWithdrawalDetails = (withdrawal: Withdrawal) => {
-    setSelectedWithdrawal(withdrawal);
-    setIsModalOpen(true);
-  };
-
-  // Сохранить настройки фильтров
-  const handleSaveFilters = () => {
-    // В реальном приложении здесь был бы API-запрос
-    alert("Настройки фильтров сохранены");
-  };
-  
-  // Функция для рендеринга статусного чипа
-  const renderStatusChip = (status: string) => {
-    let color: "primary" | "default" | "secondary" | "success" | "warning" | "danger" = "default";
+  const renderStatusChip = (status: TransactionStatus) => {
+    const colorMap: Record<TransactionStatus, "primary" | "default" | "secondary" | "success" | "warning" | "danger"> = {
+      [TransactionStatus.ACTIVE]: "success",
+      [TransactionStatus.PENDING]: "warning",
+      [TransactionStatus.FINALIZATION]: "primary",
+      [TransactionStatus.VERIFICATION]: "secondary",
+      [TransactionStatus.CANCELLED]: "danger",
+      [TransactionStatus.HISTORY]: "default"
+    };
     
-    switch (status) {
-      case "Завершено":
-        color = "success";
-        break;
-      case "Ожидание подтверждения":
-        color = "warning";
-        break;
-      case "Финализация":
-        color = "primary";
-        break;
-      case "Проверка":
-        color = "secondary";
-        break;
-      case "Отменено":
-        color = "danger";
-        break;
-      case "Время истекло":
-        color = "danger";
-        break;
+    return <Chip color={colorMap[status] || "default"} size="sm" variant="flat">{translateStatus(status)}</Chip>;
+  };
+
+  // Обработчики событий
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setReceiptFile(event.target.result.toString());
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveFilters = () => {
+    setAlert({ isVisible: true, message: "Настройки фильтров сохранены", color: "success" });
+    // Здесь был бы API-запрос для сохранения фильтров в БД
+  };
+
+  const handleAddToWork = (transactionId: number) => {
+    setInProgressMutation.mutate({
+      id: transactionId,
+      inProgress: true
+    });
+  };
+
+  const handleAcceptTransaction = () => {
+    if (!selectedTransactionId || !receiptFile) {
+      setAlert({ isVisible: true, message: "Необходимо прикрепить чек оплаты", color: "danger" });
+      return;
+    }
+
+    acceptTransactionMutation.mutate({
+      id: selectedTransactionId,
+      receiptFile
+    });
+  };
+
+  const handleRejectTransaction = () => {
+    if (!selectedTransactionId) return;
+
+    const reason = selectedReason === "Другая причина" ? otherReason : selectedReason;
+    
+    if (!reason) {
+      setAlert({ isVisible: true, message: "Необходимо указать причину отклонения", color: "danger" });
+      return;
+    }
+
+    rejectTransactionMutation.mutate({
+      id: selectedTransactionId,
+      reason,
+      receiptFile: receiptFile || undefined
+    });
+  };
+
+  // Эффект для автоматического обновления данных
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (isAuthenticated && !isLoadingTransactions) {
+      interval = setInterval(() => {
+        refetchTransactions();
+      }, 10000);
     }
     
-    return <Chip color={color} size="sm" variant="flat">{status}</Chip>;
-  };
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isAuthenticated, refetchTransactions, isLoadingTransactions]);
+
+  // Эффект для проверки аутентификации - здесь можно добавить вашу реальную логику аутентификации
+  useEffect(() => {
+    // В реальном приложении здесь можно проверить куки, токены, и т.д.
+    setAuthLoading(true);
+    
+    // Имитируем проверку аутентификации
+    const timeoutId = setTimeout(() => {
+      setIsAuthenticated(true);
+      setAuthLoading(false);
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // Эффект для отслеживания времени с момента создания транзакции
+  useEffect(() => {
+    if ((isConfirmModalOpen || isRejectModalOpen) && transactionDetails) {
+      const creationDate = new Date(transactionDetails.createdAt);
+      
+      const timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - creationDate.getTime()) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        setConfirmationTime(`${minutes}м ${seconds.toString().padStart(2, '0')}с`);
+      }, 1000);
+      
+      return () => clearInterval(timerInterval);
+    }
+  }, [isConfirmModalOpen, isRejectModalOpen, transactionDetails]);
 
   // Отображение загрузки
   if (authLoading) {
@@ -564,72 +451,76 @@ export default function WithdrawalsPage() {
     );
   }
 
-  // Ранний возврат вместо редиректа для избежания циклической зависимости
-  if (!isAuthenticated && !authLoading) {
+  // Ранний возврат, если пользователь не аутентифицирован
+  if (!isAuthenticated) {
     return null;
   }
 
-  // Функция для рендеринга выбранных элементов в виде чипов
-  const renderSelectedItems = (selectedItems, setSelectedItems) => {
-    const items = Array.from(selectedItems);
-    
-    return (
-      <div className="flex flex-wrap gap-1 mt-1">
-        {items.map(item => (
-          <Chip 
-            key={item} 
-            size="sm" 
-            variant="flat" 
-            color="primary"
-            classNames={{
-              base: "bg-primary-100 dark:bg-primary-200/20",
-              content: "text-primary-700 dark:text-primary-300"
-            }}
-            onClose={() => {
-              const newSelectedItems = new Set(selectedItems);
-              newSelectedItems.delete(item);
-              setSelectedItems(newSelectedItems);
-            }}
-            closeButton={{
-              props: {
-                "aria-label": `Удалить ${item}`
-              }
-            }}
-          >
-            {item}
-          </Chip>
-        ))}
-      </div>
-    );
-  };
+  const transactions = transactionsData?.transactions || [];
+  const pagination = transactionsData?.pagination || { totalPages: 1 };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto max-w-full px-10 py-8">
+      {/* Уведомления */}
+      <Alert
+        color={alert.color}
+        isVisible={alert.isVisible}
+        onVisibleChange={(isVisible) => setAlert(prev => ({ ...prev, isVisible }))}
+        className="fixed top-4 right-4 z-50 max-w-md shadow-lg"
+      >
+        {alert.message}
+      </Alert>
+      
       <div className="flex flex-col space-y-6">
         <div className="flex items-center gap-2">
           <BanknoteIcon className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold">Выплаты</h1>
+          <h1 className="text-3xl font-bold">Транзакции</h1>
         </div>
         
         <Card className="w-full shadow-md">
           <CardHeader>
-            <Tabs 
-              selectedKey={currentTab} 
-              onSelectionChange={setCurrentTab}
-              color="primary"
-              variant="underlined"
-              classNames={{
-                tabList: "gap-4 overflow-x-auto",
-              }}
-            >
-              <Tab key="all" title="Все" />
-              <Tab key="active" title="Активные" />
-              <Tab key="verification" title="Проверка" />
-              <Tab key="finalization" title="Финализация" />
-              <Tab key="waiting" title="Ожидание" />
-              <Tab key="history" title="История" />
-              <Tab key="canceled" title="Отмененные" />
-            </Tabs>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <Tabs 
+                selectedKey={currentTab} 
+                onSelectionChange={(key) => {
+                  if (typeof key === 'string' && key !== currentTab) {
+                    setCurrentTab(key);
+                    setPage(1);
+                  }
+                }}
+                color="primary"
+                variant="underlined"
+                classNames={{
+                  tabList: "gap-4 overflow-x-auto",
+                }}
+              >
+                <Tab key="all" title="Все" />
+                <Tab key="active" title="Активные" />
+                <Tab key="inProgress" title="В работе" />
+                <Tab key="verification" title="Проверка" />
+                <Tab key="finalization" title="Финализация" />
+                <Tab key="history" title="История" />
+                <Tab key="canceled" title="Отмененные" />
+              </Tabs>
+              
+              <div className="flex w-full md:w-auto">
+                <Input
+                  placeholder="Поиск транзакций..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full md:w-64"
+                  startContent={
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                  }
+                />
+              </div>
+            </div>
           </CardHeader>
           
           <Divider />
@@ -642,7 +533,11 @@ export default function WithdrawalsPage() {
                 <Select
                   selectionMode="multiple"
                   selectedKeys={selectedProfileTypes}
-                  onSelectionChange={setSelectedProfileTypes}
+                  onSelectionChange={(keys) => {
+                    if (keys instanceof Set) {
+                      setSelectedProfileTypes(new Set(Array.from(keys) as string[]));
+                    }
+                  }}
                   className="w-full"
                   variant="bordered"
                   placeholder="Выберите типы профиля"
@@ -661,7 +556,11 @@ export default function WithdrawalsPage() {
                 <Select
                   selectionMode="multiple"
                   selectedKeys={selectedBanksSBP}
-                  onSelectionChange={setSelectedBanksSBP}
+                  onSelectionChange={(keys) => {
+                    if (keys instanceof Set) {
+                      setSelectedBanksSBP(new Set(Array.from(keys) as string[]));
+                    }
+                  }}
                   className="w-full"
                   variant="bordered"
                   placeholder="Выберите банки СБП"
@@ -680,7 +579,11 @@ export default function WithdrawalsPage() {
                 <Select
                   selectionMode="multiple"
                   selectedKeys={selectedBanksByCard}
-                  onSelectionChange={setSelectedBanksByCard}
+                  onSelectionChange={(keys) => {
+                    if (keys instanceof Set) {
+                      setSelectedBanksByCard(new Set(Array.from(keys) as string[]));
+                    }
+                  }}
                   className="w-full"
                   variant="bordered"
                   placeholder="Выберите банки по карте"
@@ -713,159 +616,182 @@ export default function WithdrawalsPage() {
               </div>
             </div>
             
-            {/* Таблица выплат */}
-            {filteredWithdrawals.length > 0 ? (
+            {/* Таблица транзакций */}
+            {isLoadingTransactions && transactions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <Spinner size="lg" color="primary" />
+                <p className="mt-4 text-lg">Загрузка транзакций...</p>
+              </div>
+            ) : transactions.length > 0 ? (
               <div className="overflow-x-auto">
                 <Table
-                  aria-label="Таблица выплат"
-                  bottomContent={
-                    <div className="flex w-full justify-center">
-                      <Pagination
-                        isCompact
-                        showControls
-                        showShadow
-                        color="primary"
-                        page={page}
-                        total={Math.ceil(filteredWithdrawals.length / rowsPerPage)}
-                        onChange={(page) => setPage(page)}
-                      />
-                    </div>
-                  }
+                  shadow="sm"
+                  selectionMode="none"
+                  aria-label="Таблица транзакций"
                   classNames={{
-                    wrapper: "min-h-[500px]",
-                    tr: "border-b border-divider hover:bg-default-100 dark:hover:bg-default-50",
+                    base: "max-h-[480px] overflow-auto",
+                    table: "min-w-[800px]",
                   }}
-                  aria-labelledby="withdrawals-table"
                 >
                   <TableHeader>
-                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Заявка</TableColumn>
-                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Дата создания / подтверждения</TableColumn>
-                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Сумма</TableColumn>
-                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Получатель</TableColumn>
-                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Сумма к списанию</TableColumn>
-                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Курс</TableColumn>
-                    <TableColumn className="bg-default-100 dark:bg-default-50 font-bold">Действия</TableColumn>
+                    <TableColumn key="id">ID</TableColumn>
+                    <TableColumn key="date">Дата</TableColumn>
+                    <TableColumn key="amount">Сумма</TableColumn>
+                    <TableColumn key="status">Статус</TableColumn>
+                    <TableColumn key="bank">Банк</TableColumn>
+                    <TableColumn key="action">Действие</TableColumn>
                   </TableHeader>
-                  <TableBody 
-                    items={paginatedWithdrawals}
-                    emptyContent={"Нет данных для отображения"}
+                  <TableBody
+                    emptyContent={
+                      <div className="py-3 text-center">
+                        {isLoadingTransactions ? (
+                          <div className="flex flex-col items-center">
+                            <Spinner size="sm" color="primary" />
+                            <span className="mt-2">Загрузка транзакций...</span>
+                          </div>
+                        ) : (
+                          "Нет доступных транзакций"
+                        )}
+                      </div>
+                    }
+                    items={transactions}
                   >
-                    {(withdrawal) => (
-                      <TableRow 
-                        key={withdrawal.id} 
-                        className="even:bg-default-50 dark:even:bg-default-100 transition-colors"
-                      >
+                    {(transaction) => (
+                      <TableRow key={transaction.id}>
                         <TableCell>
                           <Button
                             variant="light"
-                            onPress={() => handleOpenWithdrawalDetails(withdrawal)}
+                            onPress={() => {
+                              setSelectedTransactionId(transaction.id);
+                              setIsDetailsModalOpen(true);
+                            }}
                             className="text-primary font-medium"
                             startContent={<EyeIcon size={16} />}
                           >
-                            {withdrawal.id}
+                            {transaction.id}
                           </Button>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
                             <div className="flex items-center gap-1">
                               <CalendarIcon size={14} className="text-default-500" />
-                              <span>{withdrawal.createdAt}</span>
+                              <span>{formatDate(transaction.createdAt)}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <ClockIcon size={14} className="text-default-500" />
-                              <span>{withdrawal.confirmedAt}</span>
-                            </div>
+                            {transaction.confirmedAt && (
+                              <div className="flex items-center gap-1">
+                                <ClockIcon size={14} className="text-default-500" />
+                                <span>{formatDate(transaction.confirmedAt)}</span>
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
                             <div className="flex items-center gap-1">
                               <RussianRubleIcon size={14} className="text-primary" />
-                              <span>{withdrawal.amountRUB.toFixed(2)} ₽</span>
+                              <span>{transaction.amountRUB.toFixed(2)} ₽</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <DollarSignIcon size={14} className="text-success" />
-                              <span>{withdrawal.amountUSDT.toFixed(2)} USDT</span>
+                              <span>{transaction.amountUSDT.toFixed(2)} USDT</span>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <CreditCardIcon size={14} className="text-default-500" />
-                            <span>{withdrawal.recipient.bank}</span>
-                            <Button 
-                              isIconOnly
-                              size="sm"
-                              variant="light"
-                              onPress={() => handleCopy(withdrawal.recipient.cardNumber)}
-                            >
-                              <CopyIcon size={14} />
-                            </Button>
+                            {renderStatusChip(transaction.status)}
+                            {transaction.inProgress && (
+                              <Badge color="primary" variant="flat">В работе</Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <div className="flex items-center gap-1">
-                              <DollarSignIcon size={14} className="text-success" />
-                              <span>{withdrawal.amountToCharge.usdt.toFixed(2)} USDT</span>
+                            <div className="flex items-center gap-2">
+                              {transaction.trafficType === TrafficType.SBP ? (
+                                <PhoneIcon size={18} className="text-primary" />
+                              ) : (
+                                <CreditCardIcon size={18} className="text-primary" />
+                              )}
+                              <span className="font-medium">
+                                {transaction.phoneNumber || transaction.cardNumber || "Не указано"}
+                              </span>
+                              <Button 
+                                isIconOnly
+                                size="sm"
+                                variant="light"
+                                onPress={() => copyToClipboard(transaction.phoneNumber || transaction.cardNumber || "")}
+                                isDisabled={!transaction.phoneNumber && !transaction.cardNumber}
+                              >
+                                <CopyIcon size={14} />
+                              </Button>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <RussianRubleIcon size={14} className="text-primary" />
-                              <span>{withdrawal.amountToCharge.rub.toFixed(2)} ₽</span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className={`text-xs px-2 py-0.5 rounded ${transaction.trafficType === TrafficType.SBP ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
+                                {transaction.trafficType === TrafficType.SBP ? "СБП" : "Банковская карта"}
+                              </div>
+                              <span className="text-default-500 text-sm">
+                                {transaction.bankName || ""}
+                              </span>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="whitespace-nowrap">
-                            {withdrawal.exchangeRate.toFixed(2)} ₽
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
-                            {withdrawal.status === "Ожидание подтверждения" ? (
+                            {transaction.status === TransactionStatus.PENDING && currentTab === "inProgress" ? (
+                              // Кнопки принятия/отклонения для транзакций в работе
                               <>
-                                {/* <Button
-                                  isIconOnly
-                                  size="sm"
-                                  color="success"
-                                  variant="flat"
-                                  onPress={() => handleCopy(`${withdrawal.id}: ${withdrawal.recipient.cardNumber} - ${withdrawal.amountRUB.toFixed(2)} ₽`)}
-                                  className="min-w-[40px]"
-                                >
-                                  {copySuccess ? <CheckIcon size={14} /> : <ClipboardIcon size={14} />}
-                                </Button> */}
                                 <Button
-                                  isIconOnly
                                   size="sm"
                                   color="success"
                                   variant="flat"
-                                  className="min-w-[40px]"
-                                  title="Принять"
-                                  onPress={() => handleAcceptWithdrawal(withdrawal)}
-                                  disabled={isLoading}
+                                  className="min-w-[110px]"
+                                  title="Подтвердить"
+                                  onPress={() => {
+                                    setSelectedTransactionId(transaction.id);
+                                    setIsConfirmModalOpen(true);
+                                  }}
+                                  isDisabled={acceptTransactionMutation.isPending || rejectTransactionMutation.isPending}
                                 >
-                                  <CheckIcon size={14} />
+                                  Подтвердить
                                 </Button>
                                 <Button
-                                  isIconOnly
                                   size="sm"
                                   color="danger"
                                   variant="flat"
-                                  className="min-w-[40px]"
+                                  className="min-w-[110px]"
                                   title="Отклонить"
-                                  onPress={() => handleRejectWithdrawal(withdrawal)}
-                                  disabled={isLoading}
+                                  onPress={() => {
+                                    setSelectedTransactionId(transaction.id);
+                                    setIsRejectModalOpen(true);
+                                  }}
+                                  isDisabled={acceptTransactionMutation.isPending || rejectTransactionMutation.isPending}
                                 >
-                                  <XIcon size={14} />
+                                  Отклонить
                                 </Button>
                               </>
-                            ) : (
+                            ) : transaction.status === TransactionStatus.PENDING && !transaction.inProgress ? (
+                              // Кнопка добавления в работу для активных транзакций
                               <Button
                                 isIconOnly
                                 size="sm"
                                 color="primary"
                                 variant="flat"
-                                onPress={() => handleCopy(`${withdrawal.id}: ${withdrawal.recipient.cardNumber} - ${withdrawal.amountRUB.toFixed(2)} ₽`)}
+                                className="min-w-[40px]"
+                                title="Добавить в работу"
+                                onPress={() => handleAddToWork(transaction.id)}
+                                isDisabled={setInProgressMutation.isPending}
+                              >
+                                <BriefcaseIcon size={14} />
+                              </Button>
+                            ) : (
+                              // Кнопка копирования для остальных транзакций
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                color="primary"
+                                variant="flat"
+                                onPress={() => copyToClipboard(`ID: ${transaction.id}, Сумма: ${transaction.amountRUB.toFixed(2)} ₽`)}
                                 className="min-w-[40px]"
                               >
                                 {copySuccess ? <CheckIcon size={14} /> : <ClipboardIcon size={14} />}
@@ -879,124 +805,486 @@ export default function WithdrawalsPage() {
                 </Table>
               </div>
             ) : (
-              <p className="text-center text-default-500 py-10">
-                Нет выплат, соответствующих указанным критериям
-              </p>
+              // Отображение, если нет транзакций
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="bg-default-100 p-4 rounded-full mb-4">
+                  <AlertCircleIcon size={40} className="text-default-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Транзакции не найдены</h3>
+                <p className="text-default-500 text-center max-w-md">
+                  {search 
+                    ? "Попробуйте изменить параметры поиска или фильтрации" 
+                    : "В выбранной категории нет транзакций"}
+                </p>
+              </div>
             )}
           </CardBody>
         </Card>
       </div>
-      
-      {/* Модальное окно с деталями выплаты */}
-      {selectedWithdrawal && (
-        <Modal
-          isOpen={isModalOpen} 
-          onClose={() => setIsModalOpen(false)}
-          size="lg"
-        >
-          <ModalContent>
-            <ModalHeader className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <BanknoteIcon className="h-5 w-5 text-primary" />
-                <h3 className="text-xl font-semibold">Просмотр заявки</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                {renderStatusChip(selectedWithdrawal.status)}
-              </div>
-            </ModalHeader>
-            <Divider />
-            <ModalBody>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm text-default-500">ID:</p>
-                  <p className="font-medium">{selectedWithdrawal.id}</p>
+
+      {/* Модальное окно с деталями транзакции */}
+      <Modal
+        isOpen={isDetailsModalOpen} 
+        onClose={() => setIsDetailsModalOpen(false)}
+        size="lg"
+      >
+        <ModalContent>
+          {(transactionDetails) ? (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <BanknoteIcon className="h-5 w-5 text-primary" />
+                  <h3 className="text-xl font-semibold">Детали транзакции #{transactionDetails.id}</h3>
                 </div>
-                
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm text-default-500">Банк:</p>
-                  <p className="font-medium">{selectedWithdrawal.recipient.bank}</p>
+                <div className="flex items-center gap-2">
+                  {renderStatusChip(transactionDetails.status)}
+                  {transactionDetails.inProgress && (
+                    <Badge color="primary" variant="flat">В работе</Badge>
+                  )}
                 </div>
-                
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm text-default-500">Сумма:</p>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-1">
-                      <RussianRubleIcon size={14} className="text-primary" />
-                      <span className="font-medium">{selectedWithdrawal.amountRUB.toFixed(2)} ₽</span>
+              </ModalHeader>
+              <Divider />
+              <ModalBody>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-default-500">Дата создания:</p>
+                    <p className="font-medium">{formatDate(transactionDetails.createdAt)}</p>
+                  </div>
+                  
+                  {transactionDetails.confirmedAt && (
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm text-default-500">Дата подтверждения:</p>
+                      <p className="font-medium">{formatDate(transactionDetails.confirmedAt)}</p>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <DollarSignIcon size={14} className="text-success" />
-                      <span className="font-medium">{selectedWithdrawal.amountUSDT.toFixed(2)} USDT</span>
+                  )}
+                  
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-default-500">Банк:</p>
+                    <p className="font-medium">{transactionDetails.bankName || "Не указан"}</p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-default-500">Тип трафика:</p>
+                    <p className="font-medium">{transactionDetails.trafficType === TrafficType.SBP ? "СБП" : "Банковская карта"}</p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-default-500">Сумма RUB:</p>
+                    <p className="font-medium">{transactionDetails.amountRUB.toFixed(2)} ₽</p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-default-500">Сумма USDT:</p>
+                    <p className="font-medium">{transactionDetails.amountUSDT.toFixed(2)} USDT</p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-default-500">Курс:</p>
+                    <p className="font-medium">{transactionDetails.exchangeRate.toFixed(2)} ₽</p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-default-500">К списанию RUB:</p>
+                    <p className="font-medium">{transactionDetails.amountToChargeRUB.toFixed(2)} ₽</p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-default-500">К списанию USDT:</p>
+                    <p className="font-medium">{transactionDetails.amountToChargeUSDT.toFixed(2)} USDT</p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <p className="text-sm text-default-500">Реквизиты:</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">
+                        {transactionDetails.phoneNumber || transactionDetails.cardNumber || "Не указаны"}
+                      </p>
+                      <Button 
+                        isIconOnly
+                        size="sm"
+                        variant="flat"
+                        onPress={() => copyToClipboard(transactionDetails.phoneNumber || transactionDetails.cardNumber || "")}
+                        isDisabled={!transactionDetails.phoneNumber && !transactionDetails.cardNumber}
+                      >
+                        <CopyIcon size={14} />
+                      </Button>
                     </div>
+                  </div>
+                  
+                  {transactionDetails.description && (
+                    <div className="flex flex-col gap-1 md:col-span-2">
+                      <p className="text-sm text-default-500">Описание:</p>
+                      <p className="font-medium">{transactionDetails.description}</p>
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-col gap-2 md:col-span-2">
+                    <p className="text-sm text-default-500">Прикреплённые чеки:</p>
+                    {transactionDetails.receipts.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {transactionDetails.receipts.map((receipt) => (
+                          <div key={receipt.id} className="flex items-center justify-between p-2 border dark:border-gray-500/20 rounded-md">
+                            <div className="flex items-center gap-2">
+                              <FileIcon size={16} className="text-primary" />
+                              <span className="font-medium">Чек от {formatDate(receipt.createdAt)}</span>
+                              <Badge color={receipt.isVerified ? "success" : "warning"}>
+                                {receipt.isVerified ? "Проверен" : "Не проверен"}
+                              </Badge>
+                            </div>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="flat"
+                              color="primary"
+                              as="a"
+                              href={receipt.filePath}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <DownloadIcon size={14} />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-default-500">Нет прикрепленных чеков</p>
+                    )}
+                  </div>
+                  
+                  {transactionDetails.disputes.length > 0 && (
+                    <div className="flex flex-col gap-2 md:col-span-2">
+                      <p className="text-sm text-default-500">Споры:</p>
+                      <div className="flex flex-col gap-2">
+                        {transactionDetails.disputes.map((dispute) => (
+                          <div key={dispute.id} className="flex flex-col p-2 border dark:border-gray-500/20 rounded-md">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-medium">Спор #{dispute.id}</span>
+                              <Badge color={dispute.resolved ? "success" : "warning"}>
+                                {dispute.resolved ? "Разрешен" : "В процессе"}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-default-700"><strong>Причина:</strong> {dispute.reason}</p>
+                            <p className="text-sm text-default-700"><strong>Описание:</strong> {dispute.description}</p>
+                            <p className="text-xs text-default-500 mt-1">Создан: {formatDate(dispute.createdAt)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button 
+                  color="primary" 
+                  variant="light" 
+                  onPress={() => setIsDetailsModalOpen(false)}
+                >
+                  Закрыть
+                </Button>
+                {transactionDetails.status === TransactionStatus.PENDING && !transactionDetails.inProgress && (
+                  <Button 
+                    color="primary"
+                    onPress={() => {
+                      setIsDetailsModalOpen(false);
+                      handleAddToWork(transactionDetails.id);
+                    }}
+                    isDisabled={setInProgressMutation.isPending}
+                  >
+                    Добавить в работу
+                  </Button>
+                )}
+              </ModalFooter>
+            </>
+          ) : (
+            <div className="flex justify-center items-center py-8">
+              <Spinner color="primary" />
+            </div>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* Модальное окно подтверждения транзакции */}
+      <Modal
+        isOpen={isConfirmModalOpen} 
+        onClose={() => !acceptTransactionMutation.isPending && setIsConfirmModalOpen(false)}
+        size="md"
+      >
+        <ModalContent>
+          {(transactionDetails) ? (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-gray-100 rounded-full">
+                      <ClockIcon size={24} className="text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold">Подтверждение транзакции</h3>
+                  </div>
+                  <Button
+                    isIconOnly
+                    variant="light"
+                    onPress={() => !acceptTransactionMutation.isPending && setIsConfirmModalOpen(false)}
+                  >
+                    <XIcon size={20} />
+                  </Button>
+                </div>
+                <div className="text-default-500">{confirmationTime}</div>
+              </ModalHeader>
+              <Divider />
+              <ModalBody>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-default-500">ID</p>
+                    <p className="font-medium">{transactionDetails.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-default-500">Банк</p>
+                    <p className="font-medium">{transactionDetails.bankName || "Не указан"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-default-500">Сумма</p>
+                    <p className="font-medium">
+                      {transactionDetails.amountRUB.toFixed(2)} ₽ / {transactionDetails.amountUSDT.toFixed(2)} USDT
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-default-500">Курс</p>
+                    <p className="font-medium">{transactionDetails.exchangeRate.toFixed(2)} ₽</p>
                   </div>
                 </div>
                 
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm text-default-500">Курс:</p>
-                  <p className="font-medium">{selectedWithdrawal.exchangeRate.toFixed(2)} ₽</p>
-                </div>
-                
-                <div className="flex flex-col gap-1 md:col-span-2">
-                  <p className="text-sm text-default-500">Карта:</p>
+                <div className="mt-4">
+                  <p className="text-sm text-default-500">Реквизиты</p>
                   <div className="flex items-center gap-2">
-                    <p className="font-medium">{selectedWithdrawal.recipient.cardNumber}</p>
-                    <Button 
+                    <p className="font-medium">
+                      {transactionDetails.phoneNumber || transactionDetails.cardNumber || "Не указаны"}
+                    </p>
+                    <Button
                       isIconOnly
                       size="sm"
-                      variant="flat"
-                      onPress={() => handleCopy(selectedWithdrawal.recipient.cardNumber)}
+                      variant="light"
+                      onPress={() => copyToClipboard(transactionDetails.phoneNumber || transactionDetails.cardNumber || "")}
+                      isDisabled={!transactionDetails.phoneNumber && !transactionDetails.cardNumber}
                     >
                       <CopyIcon size={14} />
                     </Button>
                   </div>
                 </div>
                 
-                <div className="flex flex-col gap-2 md:col-span-2">
-                  <p className="text-sm text-default-500">Прикреплённые файлы:</p>
-                  {selectedWithdrawal.attachedFiles.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                      {selectedWithdrawal.attachedFiles.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 border dark:border-gray-500/20 rounded-md">
-                          <div className="flex items-center gap-2">
-                            <FileIcon size={16} className="text-primary" />
-                            <span className="font-medium">{file.name}</span>
-                            <span className="text-xs text-default-500">{file.size}</span>
-                          </div>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="flat"
-                            color="primary"
-                          >
-                            <DownloadIcon size={14} />
-                          </Button>
+                <div className="mt-6">
+                  <p className="text-sm text-default-500">Прикрепите чек оплаты</p>
+                  
+                  <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      onChange={handleFileChange}
+                      accept="image/*,.pdf"
+                    />
+                    
+                    {receiptFile ? (
+                      <div className="flex flex-col items-center">
+                        <div className="bg-success/10 p-2 rounded-full mb-2">
+                          <CheckIcon size={24} className="text-success" />
                         </div>
-                      ))}
+                        <p className="text-success font-medium">Файл загружен</p>
+                        <p className="text-xs text-default-500 mt-1">Нажмите для замены</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <div className="bg-primary/10 p-2 rounded-full mb-2">
+                          <UploadIcon size={24} className="text-primary" />
+                        </div>
+                        <p className="text-primary font-medium">Перетащите файлы сюда или нажмите для загрузки</p>
+                        <p className="text-xs text-default-500 mt-1">Поддерживаются JPG, PNG, PDF до 10 МБ</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button 
+                  color="primary" 
+                  className="w-full"
+                  onPress={handleAcceptTransaction}
+                  isDisabled={acceptTransactionMutation.isPending || !receiptFile}
+                  isLoading={acceptTransactionMutation.isPending}
+                >
+                  Подтвердить
+                </Button>
+              </ModalFooter>
+            </>
+          ) : (
+            <div className="flex justify-center items-center py-8">
+              <Spinner color="primary" />
+            </div>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* Модальное окно отклонения транзакции */}
+      <Modal
+        isOpen={isRejectModalOpen} 
+        onClose={() => !rejectTransactionMutation.isPending && setIsRejectModalOpen(false)}
+        size="md"
+      >
+        <ModalContent>
+          {(transactionDetails) ? (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-gray-100 rounded-full">
+                      <ClockIcon size={24} className="text-danger" />
                     </div>
-                  ) : (
-                    <p className="text-sm text-default-500">Нет прикрепленных файлов</p>
+                    <h3 className="text-xl font-semibold">Отклонение транзакции</h3>
+                  </div>
+                  <Button
+                    isIconOnly
+                    variant="light"
+                    onPress={() => !rejectTransactionMutation.isPending && setIsRejectModalOpen(false)}
+                  >
+                    <XIcon size={20} />
+                  </Button>
+                </div>
+                <div className="text-default-500">{confirmationTime}</div>
+              </ModalHeader>
+              <Divider />
+              <ModalBody>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-default-500">ID</p>
+                    <p className="font-medium">{transactionDetails.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-default-500">Банк</p>
+                    <p className="font-medium">{transactionDetails.bankName || "Не указан"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-default-500">Сумма</p>
+                    <p className="font-medium">
+                      {transactionDetails.amountRUB.toFixed(2)} ₽ / {transactionDetails.amountUSDT.toFixed(2)} USDT
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-default-500">Курс</p>
+                    <p className="font-medium">{transactionDetails.exchangeRate.toFixed(2)} ₽</p>
+                  </div>
+                </div>
+                
+                <div className="mt-4">
+                  <p className="text-sm text-default-500">Реквизиты</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">
+                      {transactionDetails.phoneNumber || transactionDetails.cardNumber || "Не указаны"}
+                    </p>
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="light"
+                      onPress={() => copyToClipboard(transactionDetails.phoneNumber || transactionDetails.cardNumber || "")}
+                      isDisabled={!transactionDetails.phoneNumber && !transactionDetails.cardNumber}
+                    >
+                      <CopyIcon size={14} />
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="mt-6">
+                  <p className="text-sm text-default-500">Причина отклонения</p>
+                  <Select
+                    className="w-full mt-2"
+                    placeholder="Выберите причину отклонения"
+                    selectedKeys={selectedReason ? [selectedReason] : []}
+                    onSelectionChange={(keys) => {
+                      if (keys instanceof Set) {
+                        setSelectedReason(Array.from(keys)[0] as string);
+                      }
+                    }}
+                  >
+                    {rejectionReasons.map((reason) => (
+                      <SelectItem key={reason} value={reason}>
+                        {reason}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                  
+                  {selectedReason === "Другая причина" && (
+                    <Textarea
+                      className="w-full mt-2"
+                      placeholder="Укажите причину отклонения"
+                      value={otherReason}
+                      onChange={(e) => setOtherReason(e.target.value)}
+                      minRows={3}
+                    />
                   )}
                 </div>
-              </div>
-            </ModalBody>
-            <ModalFooter>
-              <Button 
-                color="primary" 
-                variant="light" 
-                onPress={() => setIsModalOpen(false)}
-              >
-                Закрыть
-              </Button>
-              <Button 
-                color="primary"
-                onPress={() => handleCopy(`ID: ${selectedWithdrawal.id}, Сумма: ${selectedWithdrawal.amountRUB.toFixed(2)} ₽, Карта: ${selectedWithdrawal.recipient.cardNumber}`)}
-              >
-                {copySuccess ? "Скопировано" : "Скопировать данные"}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      )}
+                
+                <div className="mt-6">
+                  <p className="text-sm text-default-500">Прикрепите чек (опционально)</p>
+                  
+                  <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      onChange={handleFileChange}
+                      accept="image/*,.pdf"
+                    />
+                    
+                    {receiptFile ? (
+                      <div className="flex flex-col items-center">
+                        <div className="bg-success/10 p-2 rounded-full mb-2">
+                          <CheckIcon size={24} className="text-success" />
+                        </div>
+                        <p className="text-success font-medium">Файл загружен</p>
+                        <p className="text-xs text-default-500 mt-1">Нажмите для замены</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <div className="bg-primary/10 p-2 rounded-full mb-2">
+                          <UploadIcon size={24} className="text-primary" />
+                        </div>
+                        <p className="text-primary font-medium">Перетащите файлы сюда или нажмите для загрузки</p>
+                        <p className="text-xs text-default-500 mt-1">Поддерживаются JPG, PNG, PDF до 10 МБ</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button 
+                  color="danger" 
+                  className="w-full"
+                  onPress={handleRejectTransaction}
+                  isDisabled={rejectTransactionMutation.isPending || !selectedReason || (selectedReason === "Другая причина" && !otherReason)}
+                  isLoading={rejectTransactionMutation.isPending}
+                >
+                  Отклонить
+                </Button>
+              </ModalFooter>
+            </>
+          ) : (
+            <div className="flex justify-center items-center py-8">
+              <Spinner color="primary" />
+            </div>
+          )}
+        </ModalContent>
+      </Modal>
+      
+      {/* Скрытый input для загрузки файлов */}
+      <input 
+        type="file" 
+        className="hidden" 
+        accept="image/*,.pdf"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+      />
     </div>
   );
 }
