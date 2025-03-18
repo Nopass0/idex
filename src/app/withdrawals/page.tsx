@@ -5,6 +5,28 @@ import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { TransactionStatus, TrafficType } from "@prisma/client";
 
+// Определение типа Transaction для использования в компоненте
+type Transaction = {
+  id: number;
+  status: TransactionStatus;
+  description?: string | null;
+  amountRUB: number;
+  amountUSDT: number;
+  amountToChargeRUB: number;
+  amountToChargeUSDT: number;
+  bankName?: string | null;
+  cardNumber?: string | null;
+  phoneNumber?: string | null;
+  confirmedAt?: Date | null;
+  createdAt: Date;
+  exchangeRate: number;
+  userId?: number | null;
+  inProgress: boolean;
+  trafficType?: TrafficType | null;
+  User?: { id: number; name?: string | null; email?: string | null } | null;
+  Receipt?: { id: number; filePath: string; isVerified: boolean }[] | null;
+};
+
 // UI Components
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
@@ -166,6 +188,26 @@ const translateStatus = (status: TransactionStatus): string => {
     [TransactionStatus.CANCELLED]: "Отменено"
   };
   return statusMap[status] || status;
+};
+
+// Форматирование телефонного номера для копирования
+const formatPhoneForCopy = (phone: string | null | undefined): string => {
+  if (!phone) return "";
+  // Удаление всех нецифровых символов
+  return phone.replace(/\D/g, '');
+};
+
+// Формирование полного текста о транзакции для копирования
+const getTransactionFullInfo = (transaction: Transaction): string => {
+  const paymentMethod = transaction.trafficType === TrafficType.SBP
+    ? `Реквизит: ${transaction.phoneNumber || "Не указано"}\nДля копирования: ${formatPhoneForCopy(transaction.phoneNumber)}`
+    : `Реквизит: ${transaction.cardNumber || "Не указано"}`;
+  
+  return `ID: ${transaction.id}
+Банк: ${transaction.bankName || "Не указано"}
+Сумма: ${transaction.amountRUB.toFixed(2)} ₽
+${paymentMethod}
+Сумма к зачислению: ${transaction.amountToChargeRUB.toFixed(2)} ₽ / ${transaction.amountToChargeUSDT.toFixed(2)} USDT`;
 };
 
 export default function TransactionsPage() {
@@ -361,13 +403,8 @@ export default function TransactionsPage() {
       {
         onSuccess: () => {
           showAlert("Транзакция добавлена в работу", "success");
-          // Если текущая вкладка не "В работе", то переключаемся на нее
-          if (currentTab !== "inProgress") {
-            setCurrentTab("inProgress");
-            setPage(1);
-          } else {
-            void refetchTransactions();
-          }
+          setCurrentTab("inProgress");
+          setPage(1);
         },
         onError: (error) => {
           showAlert(`Ошибка: ${error.message}`, "danger");
@@ -488,7 +525,7 @@ export default function TransactionsPage() {
       <div className="flex flex-col space-y-6">
         <div className="flex items-center gap-2">
           <BanknoteIcon className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold">Транзакции</h1>
+          <h1 className="text-3xl font-bold">Выплаты</h1>
         </div>
         
         <Card className="w-full shadow-md">
@@ -648,9 +685,11 @@ export default function TransactionsPage() {
                   }}
                 >
                   <TableHeader>
+                    <TableColumn key="copy">Копировать</TableColumn>
                     <TableColumn key="id">ID</TableColumn>
                     <TableColumn key="date">Дата</TableColumn>
                     <TableColumn key="amount">Сумма</TableColumn>
+                    <TableColumn key="chargeAmount">Сумма к списанию</TableColumn>
                     <TableColumn key="status">Статус</TableColumn>
                     <TableColumn key="bank">Банк</TableColumn>
                     <TableColumn key="action">Действие</TableColumn>
@@ -674,17 +713,33 @@ export default function TransactionsPage() {
                       <TableRow key={transaction.id}>
                         <TableCell>
                           <Button
-                            variant="light"
-                            onPress={() => {
-                              setSelectedTransactionId(transaction.id);
-                              setIsDetailsModalOpen(true);
-                            }}
-                            className="text-primary font-medium"
-                            startContent={<EyeIcon size={16} />}
+                            isIconOnly
+                            size="sm"
+                            color="primary"
+                            variant="flat"
+                            className="min-w-[40px]"
+                            title="Копировать информацию"
+                            onPress={() => copyToClipboard(getTransactionFullInfo(transaction))}
                           >
-                            {transaction.id}
+                            {transaction.trafficType === TrafficType.SBP ? (
+                              <svg width="24" height="24" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M4 8.70703L8.844 17.3654V22.6467L4.00567 31.288L4 8.70703Z" fill="#5B57A2"></path>
+                                <path d="M22.5991 14.2145L27.1381 11.4325L36.4274 11.4238L22.5991 19.8952V14.2145Z" fill="#D90751"></path>
+                                <path d="M22.5733 8.65566L22.599 20.119L17.7437 17.1356V0L22.5736 8.65566H22.5733Z" fill="#FAB718"></path>
+                                <path d="M36.4273 11.4237L27.1376 11.4323L22.5733 8.65566L17.7437 0L36.427 11.4237H36.4273Z" fill="#ED6F26"></path>
+                                <path d="M22.599 31.336V25.7743L17.7437 22.8477L17.7463 40.0003L22.599 31.336Z" fill="#63B22F"></path>
+                                <path d="M27.1266 28.5793L8.84366 17.3654L4 8.70703L36.4076 28.568L27.1263 28.5793H27.1266Z" fill="#1487C9"></path>
+                                <path d="M17.7466 39.9997L22.5986 31.3354L27.1262 28.5787L36.4072 28.5674L17.7466 39.9997Z" fill="#017F36"></path>
+                                <path d="M4.00586 31.2878L17.7835 22.8479L13.1515 20.0059L8.84419 22.6465L4.00586 31.2878Z" fill="#984995"></path>
+                              </svg>
+                            ) : (
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M22 10H2M2 8.2L2 15.8C2 16.9201 2 17.4802 2.21799 17.908C2.40973 18.2843 2.71569 18.5903 3.09202 18.782C3.51984 19 4.07989 19 5.2 19L18.8 19C19.9201 19 20.4802 19 20.908 18.782C21.2843 18.5903 21.5903 18.2843 21.782 17.908C22 17.4802 22 16.9201 22 15.8V8.2C22 7.0799 22 6.51984 21.782 6.09202C21.5903 5.7157 21.2843 5.40974 20.908 5.21799C20.4802 5 19.9201 5 18.8 5L5.2 5C4.0799 5 3.51984 5 3.09202 5.21799C2.7157 5.40973 2.40973 5.71569 2.21799 6.09202C2 6.51984 2 7.07989 2 8.2Z" stroke="#667085" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                              </svg>
+                            )}
                           </Button>
                         </TableCell>
+                        <TableCell>{transaction.id}</TableCell>
                         <TableCell>
                           <div className="flex flex-col">
                             <div className="flex items-center gap-1">
@@ -704,10 +759,34 @@ export default function TransactionsPage() {
                             <div className="flex items-center gap-1">
                               <RussianRubleIcon size={14} className="text-primary" />
                               <span>{transaction.amountRUB.toFixed(2)} ₽</span>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="light"
+                                className="min-w-[24px] h-[24px]"
+                                title="Копировать сумму в рублях"
+                                onPress={() => copyToClipboard(transaction.amountRUB.toFixed(2))}
+                              >
+                                <CopyIcon size={14} className="text-default-500" />
+                              </Button>
                             </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
                             <div className="flex items-center gap-1">
                               <DollarSignIcon size={14} className="text-success" />
-                              <span>{transaction.amountUSDT.toFixed(2)} USDT</span>
+                              <span>{transaction.amountToChargeUSDT.toFixed(2)} USDT</span>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="light"
+                                className="min-w-[24px] h-[24px]"
+                                title="Копировать сумму в USDT"
+                                onPress={() => copyToClipboard(transaction.amountToChargeUSDT.toFixed(2))}
+                              >
+                                <CopyIcon size={14} className="text-default-500" />
+                              </Button>
                             </div>
                           </div>
                         </TableCell>
@@ -751,13 +830,13 @@ export default function TransactionsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            {transaction.status === TransactionStatus.PENDING && currentTab === "inProgress" ? (
-                              // Кнопки принятия/отклонения для транзакций в работе
+                          <div className="flex items-center justify-end gap-2">
+                            {currentTab === "inProgress" && transaction.status === TransactionStatus.PENDING ? (
+                              // Кнопки принятия/отклонения только для транзакций в разделе "В работе"
                               <>
                                 <Button
                                   size="sm"
-                                  color="success"
+                                  color="primary"
                                   variant="flat"
                                   className="min-w-[110px]"
                                   title="Подтвердить"
@@ -784,31 +863,51 @@ export default function TransactionsPage() {
                                   Отклонить
                                 </Button>
                               </>
-                            ) : transaction.status === TransactionStatus.PENDING && !transaction.inProgress ? (
-                              // Кнопка добавления в работу для активных транзакций
-                              <Button
-                                isIconOnly
-                                size="sm"
-                                color="primary"
-                                variant="flat"
-                                className="min-w-[40px]"
-                                title="Добавить в работу"
-                                onPress={() => handleAddToWork(transaction.id)}
-                                isDisabled={setInProgressMutation.isPending}
-                              >
-                                <BriefcaseIcon size={14} />
-                              </Button>
+                            ) : (currentTab === "all" || currentTab === "active") && transaction.status === TransactionStatus.PENDING && !transaction.inProgress ? (
+                              // Две кнопки для активных транзакций в разделах "Все" и "Активные"
+                              <>
+                                <Button
+                                  isIconOnly
+                                  size="sm"
+                                  color="primary"
+                                  variant="flat"
+                                  className="min-w-[40px]"
+                                  title="Просмотреть детали"
+                                  onPress={() => {
+                                    setSelectedTransactionId(transaction.id);
+                                    setIsDetailsModalOpen(true);
+                                  }}
+                                >
+                                  <EyeIcon size={14} />
+                                </Button>
+                                <Button
+                                  isIconOnly
+                                  size="sm"
+                                  color="success"
+                                  variant="flat"
+                                  className="min-w-[40px]"
+                                  title="Добавить в работу"
+                                  onPress={() => handleAddToWork(transaction.id)}
+                                  isDisabled={setInProgressMutation.isPending}
+                                >
+                                  <BriefcaseIcon size={14} />
+                                </Button>
+                              </>
                             ) : (
-                              // Кнопка копирования для остальных транзакций
+                              // Кнопка просмотра деталей для остальных случаев
                               <Button
                                 isIconOnly
                                 size="sm"
                                 color="primary"
                                 variant="flat"
-                                onPress={() => copyToClipboard(`ID: ${transaction.id}, Сумма: ${transaction.amountRUB.toFixed(2)} ₽`)}
                                 className="min-w-[40px]"
+                                title="Просмотреть детали"
+                                onPress={() => {
+                                  setSelectedTransactionId(transaction.id);
+                                  setIsDetailsModalOpen(true);
+                                }}
                               >
-                                {copySuccess ? <CheckIcon size={14} /> : <ClipboardIcon size={14} />}
+                                <EyeIcon size={14} />
                               </Button>
                             )}
                           </div>
@@ -916,7 +1015,7 @@ export default function TransactionsPage() {
                       <Button 
                         isIconOnly
                         size="sm"
-                        variant="flat"
+                        variant="light"
                         onPress={() => copyToClipboard(transactionDetails.phoneNumber || transactionDetails.cardNumber || "")}
                         isDisabled={!transactionDetails.phoneNumber && !transactionDetails.cardNumber}
                       >

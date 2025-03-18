@@ -290,7 +290,7 @@ export function Navigation() {
 
   return (
     <>
-      <Navbar maxWidth="xl" className="relative">
+      <Navbar maxWidth="full" className="relative">
         <NavbarBrand>
           <Link href="/" className="font-bold text-xl text-inherit">
             CHA<span style={{color: "#006039"}}>$</span>E
@@ -354,6 +354,12 @@ export function Navigation() {
                         <DollarSignIcon className="h-3 w-3 text-success" />
                         <span className="text-xs text-default-500">
                           {safeUserData().balanceUSDT?.toFixed(2) || "0.00"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <RussianRubleIcon className="h-3 w-3 text-primary" />
+                        <span className="text-xs text-default-500">
+                          {safeUserData().balanceRUB?.toFixed(2) || "0.00"}
                         </span>
                       </div>
                     </div>

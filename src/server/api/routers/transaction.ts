@@ -110,8 +110,7 @@ export const transactionRouter = createTRPCRouter({
   // Установка статуса "в работе" для транзакции
   setTransactionInProgress: protectedProcedure
     .input(z.object({ 
-      id: z.number().int(),
-      inProgress: z.boolean().default(true)
+      id: z.number().int()
     }))
     .mutation(async ({ ctx, input }) => {
       try {
@@ -134,48 +133,40 @@ export const transactionRouter = createTRPCRouter({
           });
         }
 
-        // Проверяем, что транзакция "в работе"
-        if (!transaction.inProgress) {
+        // Проверяем, что транзакция не уже в работе и имеет активный статус
+        if (transaction.inProgress) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "Транзакция должна быть в работе",
+            message: "Транзакция уже находится в работе",
           });
         }
 
-        // Здесь проверка чека (заглушка: всегда возвращает true)
-        const isValidReceipt = true; // В реальном сценарии здесь была бы проверка чека
+        if (transaction.status !== TransactionStatus.PENDING) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Только транзакции со статусом 'Ожидание подтверждения' могут быть взяты в работу",
+          });
+        }
 
-        // Сохраняем чек
-        const receipt = await ctx.db.receipt.create({
-          data: {
-            filePath: input.receiptFile,
-            isVerified: isValidReceipt,
-            isFake: false, // В реальном сценарии это определялось бы проверкой
-            transactionId: input.id,
-          }
-        });
-
-        // Обновляем статус транзакции на HISTORY и снимаем флаг "в работе"
+        // Обновляем статус "в работе"
         const updatedTransaction = await ctx.db.transaction.update({
           where: { id: input.id },
           data: {
-            status: TransactionStatus.ACTIVE,
-            inProgress: false,
-            confirmedAt: new Date()
+            inProgress: true
           }
         });
 
         return {
           transaction: updatedTransaction,
-          receipt,
           success: true
         };
       } catch (error) {
-        if (error instanceof TRPCError) throw error;
-        
+        if (error instanceof TRPCError) {
+          throw error;
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Не удалось принять транзакцию",
+          message: "Не удалось обновить статус транзакции",
         });
       }
     }),
@@ -765,44 +756,6 @@ export const transactionRouter = createTRPCRouter({
       });
     }
   }),
-
-  // Метод для установки флага "В работе" для транзакции
-  setTransactionInProgress: publicProcedure
-    .input(z.object({
-      id: z.number().int()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        // Проверяем существование транзакции
-        const transaction = await ctx.db.transaction.findUnique({
-          where: { id: input.id }
-        });
-
-        if (!transaction) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Транзакция не найдена",
-          });
-        }
-
-        // Обновляем транзакцию, устанавливая флаг inProgress
-        const updatedTransaction = await ctx.db.transaction.update({
-          where: { id: input.id },
-          data: {
-            inProgress: true
-          }
-        });
-
-        return updatedTransaction;
-      } catch (error) {
-        if (error instanceof TRPCError) throw error;
-        
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Не удалось обновить статус транзакции",
-        });
-      }
-    }),
 
   // Создание случайных транзакций для тестирования (админский доступ)
   createRandomTransactions: adminProcedure
