@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { TransactionStatus, TrafficType } from "@prisma/client";
-import { createTRPCRouter, protectedProcedure, adminProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, adminProcedure, publicProcedure } from "../trpc";
 
 export const transactionRouter = createTRPCRouter({
   // Получение списка транзакций для текущего пользователя с пагинацией и фильтрацией
@@ -327,8 +327,15 @@ export const transactionRouter = createTRPCRouter({
         const transaction = await ctx.db.transaction.findUnique({
           where: { id: input.id },
           include: {
-            receipts: true,
-            disputes: true
+            Receipt: true,
+            disputes: true,
+            User: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           }
         });
 
@@ -737,7 +744,7 @@ export const transactionRouter = createTRPCRouter({
       const users = await ctx.db.user.findMany({
         where: {
           role: {
-            not: "GUEST"
+            in: ["USER", "ADMIN"]
           }
         },
         select: {
@@ -749,7 +756,7 @@ export const transactionRouter = createTRPCRouter({
           name: "asc"
         }
       });
-
+      
       return users;
     } catch (error) {
       throw new TRPCError({
@@ -757,7 +764,158 @@ export const transactionRouter = createTRPCRouter({
         message: "Не удалось получить список пользователей",
       });
     }
-  })
+  }),
+
+  // Метод для установки флага "В работе" для транзакции
+  setTransactionInProgress: publicProcedure
+    .input(z.object({
+      id: z.number().int()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        // Проверяем существование транзакции
+        const transaction = await ctx.db.transaction.findUnique({
+          where: { id: input.id }
+        });
+
+        if (!transaction) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Транзакция не найдена",
+          });
+        }
+
+        // Обновляем транзакцию, устанавливая флаг inProgress
+        const updatedTransaction = await ctx.db.transaction.update({
+          where: { id: input.id },
+          data: {
+            inProgress: true
+          }
+        });
+
+        return updatedTransaction;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Не удалось обновить статус транзакции",
+        });
+      }
+    }),
+
+  // Создание случайных транзакций для тестирования (админский доступ)
+  createRandomTransactions: adminProcedure
+    .input(z.object({
+      count: z.number().int().min(1).max(20).default(5)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        // Получаем список пользователей
+        const users = await ctx.db.user.findMany({
+          where: {
+            role: {
+              in: ["USER", "ADMIN"]
+            }
+          },
+          select: {
+            id: true
+          }
+        });
+
+        if (users.length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Необходимо наличие пользователей для создания тестовых транзакций",
+          });
+        }
+
+        // Статусы транзакций для рандомного выбора
+        const statuses = Object.values(TransactionStatus);
+        // Типы трафика для рандомного выбора
+        const trafficTypes = Object.values(TrafficType);
+        
+        // Банки для рандомного выбора
+        const banks = [
+          "Сбербанк", "Тинькофф", "Альфа-Банк", "ВТБ", "Райффайзен", 
+          "Газпромбанк", "Открытие", "Росбанк", "Совкомбанк", "МТС Банк"
+        ];
+
+        // Создаем N случайных транзакций
+        const transactions = [];
+        for (let i = 0; i < input.count; i++) {
+          // Случайные параметры
+          const userId = users[Math.floor(Math.random() * users.length)]?.id;
+          if (!userId) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Не удалось получить ID пользователя",
+            });
+          }
+          
+          const status = statuses[Math.floor(Math.random() * statuses.length)] as TransactionStatus;
+          const trafficType = Math.random() > 0.3 ? trafficTypes[Math.floor(Math.random() * trafficTypes.length)] : null;
+          const bankName = banks[Math.floor(Math.random() * banks.length)];
+          const amountRUB = Math.round(Math.random() * 10000 * 100) / 100; // Случайная сумма до 10,000 RUB с 2 знаками после запятой
+          const exchangeRate = Math.round((Math.random() * 10 + 90) * 100) / 100; // Случайный курс от 90 до 100
+          const amountUSDT = Math.round((amountRUB / exchangeRate) * 100) / 100;
+          const inProgress = Math.random() > 0.7; // 30% шанс быть "в работе"
+          
+          // Генерация случайного номера карты (последние 4 цифры)
+          const cardNumber = `**** **** **** ${Math.floor(1000 + Math.random() * 9000)}`;
+          
+          // Генерация случайного номера телефона
+          const phoneNumber = `+7${Math.floor(9000000000 + Math.random() * 1000000000)}`;
+          
+          // Создаем транзакцию
+          const transaction = await ctx.db.transaction.create({
+            data: {
+              status,
+              description: `Тестовая транзакция #${i+1}`,
+              amountRUB,
+              amountUSDT,
+              exchangeRate,
+              bankName,
+              cardNumber,
+              phoneNumber,
+              userId,
+              inProgress,
+              trafficType,
+              isMock: true,
+              // 50% шанс добавления даты подтверждения для ACTIVE статуса
+              confirmedAt: status === TransactionStatus.ACTIVE && Math.random() > 0.5 ? new Date() : null,
+            }
+          });
+          
+          transactions.push(transaction);
+          
+          // Если статус ACTIVE, добавляем чек
+          if (status === TransactionStatus.ACTIVE) {
+            await ctx.db.receipt.create({
+              data: {
+                filePath: "/placeholder-receipt.jpg",
+                isVerified: Math.random() > 0.3, // 70% шанс быть проверенным
+                isFake: Math.random() > 0.9, // 10% шанс быть фейком
+                transactionId: transaction.id,
+                updatedAt: new Date() // Добавляем обязательное поле updatedAt
+              }
+            });
+          }
+        }
+        
+        return {
+          count: transactions.length,
+          success: true
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Не удалось создать тестовые транзакции",
+        });
+      }
+    }),
 });
 
 export default transactionRouter; 

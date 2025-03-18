@@ -349,22 +349,36 @@ export default function TransactionsPage() {
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result) {
-        setReceiptFile(event.target.result.toString());
+        setReceiptFile(event.target.result as string);
       }
     };
     reader.readAsDataURL(file);
   };
 
+  const handleAddToWork = (transactionId: number) => {
+    setInProgressMutation.mutate(
+      { id: transactionId },
+      {
+        onSuccess: () => {
+          showAlert("Транзакция добавлена в работу", "success");
+          // Если текущая вкладка не "В работе", то переключаемся на нее
+          if (currentTab !== "inProgress") {
+            setCurrentTab("inProgress");
+            setPage(1);
+          } else {
+            void refetchTransactions();
+          }
+        },
+        onError: (error) => {
+          showAlert(`Ошибка: ${error.message}`, "danger");
+        }
+      }
+    );
+  };
+
   const handleSaveFilters = () => {
     setAlert({ isVisible: true, message: "Настройки фильтров сохранены", color: "success" });
     // Здесь был бы API-запрос для сохранения фильтров в БД
-  };
-
-  const handleAddToWork = (transactionId: number) => {
-    setInProgressMutation.mutate({
-      id: transactionId,
-      inProgress: true
-    });
   };
 
   const handleAcceptTransaction = () => {
@@ -598,7 +612,7 @@ export default function TransactionsPage() {
               </div>
               
               <div className="flex flex-col">
-                <p className="text-sm text-default-500 mb-1">Баланс:</p>
+                <p className="text-sm text-default-500">Баланс:</p>
                 <div className="flex items-center gap-2">
                   <Input
                     value={balance}
@@ -920,9 +934,9 @@ export default function TransactionsPage() {
                   
                   <div className="flex flex-col gap-2 md:col-span-2">
                     <p className="text-sm text-default-500">Прикреплённые чеки:</p>
-                    {transactionDetails.receipts.length > 0 ? (
+                    {transactionDetails.Receipt.length > 0 ? (
                       <div className="flex flex-col gap-2">
-                        {transactionDetails.receipts.map((receipt) => (
+                        {transactionDetails.Receipt.map((receipt) => (
                           <div key={receipt.id} className="flex items-center justify-between p-2 border dark:border-gray-500/20 rounded-md">
                             <div className="flex items-center gap-2">
                               <FileIcon size={16} className="text-primary" />

@@ -84,7 +84,7 @@ export default function TransactionsManager() {
     bankName: "",
     cardNumber: "",
     phoneNumber: "",
-    userId: null as number | null
+    userId: undefined as number | undefined
   });
 
   // Модальные окна
@@ -185,7 +185,7 @@ export default function TransactionsManager() {
       bankName: "",
       cardNumber: "",
       phoneNumber: "",
-      userId: null
+      userId: undefined
     });
   };
 
@@ -223,13 +223,37 @@ export default function TransactionsManager() {
             <DollarSignIcon className="h-6 w-6 text-primary" />
             <h2 className="text-xl font-bold">Управление транзакциями</h2>
           </div>
-          <Button 
-            color="primary" 
-            startContent={<PlusIcon className="h-4 w-4" />}
-            onClick={onCreateOpen}
-          >
-            Создать транзакцию
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              color="secondary" 
+              onClick={() => {
+                setIsLoading(true);
+                api.transaction.createRandomTransactions.mutate({
+                  count: 5
+                }, {
+                  onSuccess: () => {
+                    toast.success("5 тестовых транзакций успешно созданы");
+                    void refetchTransactions();
+                    setIsLoading(false);
+                  },
+                  onError: (error: { message: string }) => {
+                    toast.error(`Ошибка при создании транзакций: ${error.message}`);
+                    setIsLoading(false);
+                  }
+                });
+              }}
+              isLoading={isLoading}
+            >
+              Создать 5 тестовых
+            </Button>
+            <Button 
+              color="primary" 
+              startContent={<PlusIcon className="h-4 w-4" />}
+              onClick={onCreateOpen}
+            >
+              Создать транзакцию
+            </Button>
+          </div>
         </CardHeader>
         <CardBody>
           {/* Фильтры */}
@@ -247,101 +271,106 @@ export default function TransactionsManager() {
               onChange={(e) => setFilterStatus(e.target.value as TransactionStatus | "")}
               className="w-full sm:w-48"
             >
-              <SelectItem key="" value="">Все статусы</SelectItem>
+              <SelectItem key="" textValue="Все статусы">Все статусы</SelectItem>
               {Object.keys(TransactionStatus).map((status) => (
-                <SelectItem key={status} value={status}>{status}</SelectItem>
+                <SelectItem key={status} textValue={status}>{status}</SelectItem>
               ))}
             </Select>
           </div>
 
           {/* Таблица транзакций */}
-          {isTransactionsLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <Spinner />
-            </div>
-          ) : (
+          <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
             <Table 
-              aria-label="Таблица транзакций"
-              classNames={{
-                wrapper: "max-h-[600px]"
-              }}
+              aria-label="Список транзакций"
+              bottomContent={
+                transactionsData && transactionsData.pagination.totalPages > 0 ? (
+                  <div className="flex w-full justify-center">
+                    <Pagination
+                      isCompact
+                      showControls
+                      showShadow
+                      color="primary"
+                      page={page}
+                      total={transactionsData.pagination.totalPages}
+                      onChange={(page) => setPage(page)}
+                    />
+                  </div>
+                ) : null
+              }
             >
               <TableHeader>
                 <TableColumn>ID</TableColumn>
-                <TableColumn>Пользователь</TableColumn>
+                <TableColumn>Статус</TableColumn>
                 <TableColumn>Сумма RUB</TableColumn>
                 <TableColumn>Сумма USDT</TableColumn>
-                <TableColumn>Статус</TableColumn>
+                <TableColumn>Пользователь</TableColumn>
                 <TableColumn>Дата создания</TableColumn>
                 <TableColumn>Действия</TableColumn>
               </TableHeader>
-              <TableBody emptyContent="Транзакции не найдены">
-                {transactionsData?.transactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell>{transaction.id}</TableCell>
-                    <TableCell>
-                      {transaction.user ? (
-                        <div className="flex items-center gap-2">
-                          <UserIcon className="h-4 w-4 text-default-500" />
-                          <span>{transaction.user.name || transaction.user.email}</span>
-                        </div>
-                      ) : (
-                        <span className="text-default-400">Не назначен</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{transaction.amountRUB.toFixed(2)} ₽</TableCell>
-                    <TableCell>{transaction.amountUSDT.toFixed(2)} USDT</TableCell>
-                    <TableCell><StatusChip status={transaction.status} /></TableCell>
-                    <TableCell>{formatDate(transaction.createdAt)}</TableCell>
-                    <TableCell>
-                      <Dropdown>
-                        <DropdownTrigger>
-                          <Button isIconOnly variant="light" size="sm">
-                            <MoreVerticalIcon className="h-4 w-4" />
-                          </Button>
-                        </DropdownTrigger>
-                        <DropdownMenu aria-label="Действия с транзакцией">
-                          <DropdownItem key="view" 
-                            startContent={<EyeIcon className="h-4 w-4" />}
-                            onClick={() => openViewModal(transaction)}
-                          >
-                            Просмотр
-                          </DropdownItem>
-                          <DropdownItem key="edit"
-                            startContent={<EditIcon className="h-4 w-4" />}
-                            onClick={() => openEditModal(transaction)}
-                          >
-                            Редактировать
-                          </DropdownItem>
-                          <DropdownItem key="delete"
-                            startContent={<TrashIcon className="h-4 w-4" />}
-                            className="text-danger"
-                            onClick={() => openDeleteModal(transaction)}
-                          >
-                            Удалить
-                          </DropdownItem>
-                        </DropdownMenu>
-                      </Dropdown>
+              <TableBody>
+                {transactionsData && transactionsData.transactions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center">
+                      Транзакции не найдены
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  transactionsData?.transactions.map((transaction) => (
+                    <TableRow key={transaction.id}>
+                      <TableCell>{transaction.id}</TableCell>
+                      <TableCell>
+                        <StatusChip status={transaction.status} />
+                      </TableCell>
+                      <TableCell>{transaction.amountRUB.toFixed(2)} ₽</TableCell>
+                      <TableCell>{transaction.amountUSDT.toFixed(2)} USDT</TableCell>
+                      <TableCell>
+                        {transaction.User ? (
+                          <div className="flex items-center gap-2">
+                            <UserIcon className="h-4 w-4 text-default-500" />
+                            <span>{transaction.User.name || transaction.User.email}</span>
+                          </div>
+                        ) : (
+                          <span className="text-default-400">Не назначен</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                      <TableCell>
+                        <Dropdown>
+                          <DropdownTrigger>
+                            <Button isIconOnly variant="light" size="sm">
+                              <MoreVerticalIcon className="h-4 w-4" />
+                            </Button>
+                          </DropdownTrigger>
+                          <DropdownMenu aria-label="Действия с транзакцией">
+                            <DropdownItem key="view" 
+                              startContent={<EyeIcon className="h-4 w-4" />}
+                              onClick={() => openViewModal(transaction)}
+                            >
+                              Просмотр
+                            </DropdownItem>
+                            <DropdownItem key="edit"
+                              startContent={<EditIcon className="h-4 w-4" />}
+                              onClick={() => openEditModal(transaction)}
+                            >
+                              Редактировать
+                            </DropdownItem>
+                            <DropdownItem key="delete"
+                              startContent={<TrashIcon className="h-4 w-4" />}
+                              className="text-danger"
+                              onClick={() => openDeleteModal(transaction)}
+                            >
+                              Удалить
+                            </DropdownItem>
+                          </DropdownMenu>
+                        </Dropdown>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
-          )}
+          </div>
         </CardBody>
-        <CardFooter>
-          {transactionsData && (
-            <Pagination
-              showControls
-              total={transactionsData.pagination.totalPages}
-              page={page}
-              onChange={setPage}
-              classNames={{
-                wrapper: "my-2"
-              }}
-            />
-          )}
-        </CardFooter>
       </Card>
 
       {/* Модальное окно создания транзакции */}
@@ -354,10 +383,10 @@ export default function TransactionsManager() {
                 label="Пользователь" 
                 placeholder="Выберите пользователя"
                 selectedKeys={formData.userId ? [formData.userId.toString()] : []}
-                onChange={(e) => setFormData({...formData, userId: e.target.value ? Number(e.target.value) : null})}
+                onChange={(e) => setFormData({...formData, userId: e.target.value ? Number(e.target.value) : undefined})}
               >
                 {usersData?.map((user) => (
-                  <SelectItem key={user.id.toString()} value={user.id.toString()}>
+                  <SelectItem key={user.id.toString()} textValue={user.name || user.email}>
                     {user.name || user.email}
                   </SelectItem>
                 ))}
@@ -369,7 +398,7 @@ export default function TransactionsManager() {
                 onChange={(e) => setFormData({...formData, status: e.target.value as TransactionStatus})}
               >
                 {Object.keys(TransactionStatus).map((status) => (
-                  <SelectItem key={status} value={status}>
+                  <SelectItem key={status} textValue={status}>
                     {status}
                   </SelectItem>
                 ))}
@@ -440,10 +469,10 @@ export default function TransactionsManager() {
                 label="Пользователь" 
                 placeholder="Выберите пользователя"
                 selectedKeys={formData.userId ? [formData.userId.toString()] : []}
-                onChange={(e) => setFormData({...formData, userId: e.target.value ? Number(e.target.value) : null})}
+                onChange={(e) => setFormData({...formData, userId: e.target.value ? Number(e.target.value) : undefined})}
               >
                 {usersData?.map((user) => (
-                  <SelectItem key={user.id.toString()} value={user.id.toString()}>
+                  <SelectItem key={user.id.toString()} textValue={user.name || user.email}>
                     {user.name || user.email}
                   </SelectItem>
                 ))}
@@ -455,7 +484,7 @@ export default function TransactionsManager() {
                 onChange={(e) => setFormData({...formData, status: e.target.value as TransactionStatus})}
               >
                 {Object.keys(TransactionStatus).map((status) => (
-                  <SelectItem key={status} value={status}>
+                  <SelectItem key={status} textValue={status}>
                     {status}
                   </SelectItem>
                 ))}
@@ -530,8 +559,8 @@ export default function TransactionsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-default-500">Пользователь:</p>
-                    <p>{selectedTransaction.user ? 
-                      (selectedTransaction.user.name || selectedTransaction.user.email) : 
+                    <p>{selectedTransaction.User ? 
+                      (selectedTransaction.User.name || selectedTransaction.User.email) : 
                       "Не назначен"}</p>
                   </div>
                   
